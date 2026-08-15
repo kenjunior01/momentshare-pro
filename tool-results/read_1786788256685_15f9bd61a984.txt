@@ -1,0 +1,760 @@
+     1→import {
+     2→  QrCode,
+     3→  ScanFace,
+     4→  WifiOff,
+     5→  MessageCircle,
+     6→  Tv,
+     7→  CreditCard,
+     8→  ArrowRight,
+     9→  Star,
+    10→  Check,
+    11→  Sparkles,
+    12→  Camera,
+    13→  Zap,
+    14→  Shield,
+    15→  Upload,
+    16→  Eye,
+    17→} from "lucide-react";
+    18→import { useLang } from "@/lib/i18n";
+    19→import { useScrollReveal, useParallax, useCounter } from "@/hooks/useScrollReveal";
+    20→import hero1 from "@/assets/memoir/hero-1.jpg";
+    21→import hero2 from "@/assets/memoir/hero-2.jpg";
+    22→import hero3 from "@/assets/memoir/hero-3.jpg";
+    23→import hero4 from "@/assets/memoir/hero-4.jpg";
+    24→
+    25→/* ------------------------------------------------------------------ */
+    26→/*  Polaroid – local component (not exported)                         */
+    27→/* ------------------------------------------------------------------ */
+    28→
+    29→interface PolaroidProps {
+    30→  src: string;
+    31→  alt: string;
+    32→  caption: string;
+    33→  aspect: string;
+    34→  rotate: string;
+    35→  delay: string;
+    36→  floatDuration?: string;
+    37→}
+    38→
+    39→function Polaroid({
+    40→  src,
+    41→  alt,
+    42→  caption,
+    43→  aspect,
+    44→  rotate,
+    45→  delay,
+    46→  floatDuration = "6s",
+    47→}: PolaroidProps) {
+    48→  return (
+    49→    <div
+    50→      className={`polaroid animate-float-gentle transform ${rotate} transition-all duration-700 hover:rotate-0 hover:scale-[1.03] cursor-pointer group animate-rise light-leak`}
+    51→      style={{
+    52→        animationDelay: delay,
+    53→        "--rotation": rotate.includes("-") ? "-2deg" : "2deg",
+    54→        "--float-duration": floatDuration,
+    55→      } as React.CSSProperties}
+    56→    >
+    57→      <div className="overflow-hidden">
+    58→        <img
+    59→          src={src}
+    60→          alt={alt}
+    61→          loading="lazy"
+    62→          className={`w-full ${aspect} object-cover grayscale-[20%] group-hover:grayscale-0 sepia-[15%] group-hover:sepia-0 transition-all duration-700 ken-burns`}
+    63→        />
+    64→      </div>
+    65→      {caption && (
+    66→        <p className="mt-3 text-center font-display text-[10px] italic text-muted-foreground">
+    67→          {caption}
+    68→        </p>
+    69→      )}
+    70→    </div>
+    71→  );
+    72→}
+    73→
+    74→const polaroids = [
+    75→  {
+    76→    src: hero1,
+    77→    alt: "Noiva a rir num casamento em Maputo",
+    78→    caption: "Maputo, Outono 2023",
+    79→    aspect: "aspect-[3/4]",
+    80→    rotate: "-rotate-2",
+    81→    delay: "0ms",
+    82→    floatDuration: "7s",
+    83→  },
+    84→  {
+    85→    src: hero4,
+    86→    alt: "Brinde com champanhe numa celebração elegante",
+    87→    caption: "",
+    88→    aspect: "aspect-square",
+    89→    rotate: "rotate-1",
+    90→    delay: "150ms",
+    91→    floatDuration: "8s",
+    92→  },
+    93→  {
+    94→    src: hero2,
+    95→    alt: "Convidados a dançar numa celebração em Luanda",
+    96→    caption: "",
+    97→    aspect: "aspect-square",
+    98→    rotate: "rotate-3",
+    99→    delay: "300ms",
+   100→    floatDuration: "6.5s",
+   101→  },
+   102→  {
+   103→    src: hero3,
+   104→    alt: "Amigos abraçados ao pôr do sol",
+   105→    caption: "Cascais, Verão 2024",
+   106→    aspect: "aspect-[3/4]",
+   107→    rotate: "-rotate-1",
+   108→    delay: "450ms",
+   109→    floatDuration: "9s",
+   110→  },
+   111→] as const;
+   112→
+   113→/* ------------------------------------------------------------------ */
+   114→/*  Hero                                                              */
+   115→/* ------------------------------------------------------------------ */
+   116→
+   117→function StatCounter({
+   118→  target,
+   119→  suffix,
+   120→  label,
+   121→  start,
+   122→}: {
+   123→  target: number;
+   124→  suffix: string;
+   125→  label: string;
+   126→  start: boolean;
+   127→}) {
+   128→  const count = useCounter(target, 2200, start);
+   129→  return (
+   130→    <div className="text-center">
+   131→      <p className="font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+   132→        {count.toLocaleString()}
+   133→        {suffix}
+   134→      </p>
+   135→      <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+   136→        {label}
+   137→      </p>
+   138→    </div>
+   139→  );
+   140→}
+   141→
+   142→export function Hero() {
+   143→  const { t } = useLang();
+   144→  const parallaxOffset = useParallax(0.15);
+   145→  const [statsRef, statsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
+   146→
+   147→  return (
+   148→    <section className="gradient-mesh relative overflow-hidden px-6 pb-20 pt-32 md:px-12 md:pb-28 md:pt-40">
+   149→      {/* Subtle noise texture overlay */}
+   150→      <div className="noise-overlay pointer-events-none absolute inset-0 z-0" />
+   151→
+   152→      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-12 lg:gap-20">
+   153→        {/* Narrative Column */}
+   154→        <div className="animate-rise lg:col-span-5">
+   155→          <div className="space-y-4">
+   156→            <span className="text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground">
+   157→              Est. 2024
+   158→            </span>
+   159→            <h1 className="font-display text-5xl italic leading-none text-foreground md:text-7xl lg:text-8xl">
+   160→              Memoir
+   161→            </h1>
+   162→          </div>
+   163→
+   164→          <div className="mt-8 space-y-6">
+   165→            <h2 className="font-display text-2xl leading-tight text-foreground md:text-4xl text-balance">
+   166→              {t("heroTitle")}
+   167→            </h2>
+   168→            <p className="max-w-md text-base leading-relaxed text-muted-foreground md:text-lg text-balance">
+   169→              {t("heroSub")}
+   170→            </p>
+   171→          </div>
+   172→
+   173→          {/* No-app highlight */}
+   174→          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-2 backdrop-blur-sm">
+   175→            <Zap className="size-4 text-primary" />
+   176→            <span className="text-sm font-semibold text-foreground">{t("heroNoApp")}</span>
+   177→          </div>
+   178→          <p className="-mt-2 ml-1 max-w-xs pl-6 text-xs leading-relaxed text-muted-foreground">
+   179→            {t("heroNoAppSub")}
+   180→          </p>
+   181→
+   182→          {/* CTAs */}
+   183→          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+   184→            <a
+   185→              href="/e/casamento-ana-nuno-2024"
+   186→              className="btn-glow inline-flex items-center justify-center gap-2 rounded-sm bg-foreground px-8 py-4 text-xs font-bold uppercase tracking-widest text-background shadow-soft transition-colors hover:bg-primary"
+   187→            >
+   188→              {t("heroCta")} <ArrowRight className="size-4" />
+   189→            </a>
+   190→            <a
+   191→              href="#features"
+   192→              className="inline-flex items-center justify-center gap-2 border-b border-primary px-2 py-4 text-xs font-bold uppercase tracking-widest text-foreground transition-colors hover:text-muted-foreground"
+   193→            >
+   194→              {t("heroCta2")}
+   195→            </a>
+   196→          </div>
+   197→
+   198→          {/* Social proof strip */}
+   199→          <div className="mt-12 flex items-center gap-6 border-t border-border/50 pt-8">
+   200→            <div className="flex -space-x-3">
+   201→              <div className="grid size-12 place-items-center rounded-full border-4 border-background bg-primary text-[10px] font-bold text-primary-foreground">
+   202→                AI
+   203→              </div>
+   204→              <div className="size-12 overflow-hidden rounded-full border-4 border-background bg-secondary">
+   205→                <img
+   206→                  src={hero2}
+   207→                  alt="Convidado sorridente"
+   208→                  className="h-full w-full object-cover"
+   209→                />
+   210→              </div>
+   211→            </div>
+   212→            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+   213→              {t("navStart") === "Criar galeria"
+   214→                ? "Correspondência inteligente"
+   215→                : "Intelligent matching"}
+   216→              <br />
+   217→              {t("navStart") === "Criar galeria"
+   218→                ? "Privado por design"
+   219→                : "Private by design"}
+   220→            </p>
+   221→          </div>
+   222→        </div>
+   223→
+   224→        {/* Analog Masonry Grid – parallax */}
+   225→        <div
+   226→          className="relative lg:col-span-7"
+   227→          style={{ transform: `translateY(${parallaxOffset}px)` }}
+   228→        >
+   229→          <div className="grid grid-cols-2 gap-4 md:gap-8">
+   230→            <div className="space-y-4 md:space-y-8">
+   231→              <Polaroid {...polaroids[0]} />
+   232→              <Polaroid {...polaroids[1]} />
+   233→            </div>
+   234→            <div className="space-y-4 md:space-y-8 pt-12">
+   235→              <Polaroid {...polaroids[2]} />
+   236→              <Polaroid {...polaroids[3]} />
+   237→            </div>
+   238→          </div>
+   239→          {/* Decorative border frame */}
+   240→          <div className="pointer-events-none absolute -z-10 top-1/2 left-1/2 h-[80%] w-[120%] -translate-x-1/2 -translate-y-1/2 border border-border/30" />
+   241→        </div>
+   242→      </div>
+   243→
+   244→      {/* Animated Stats Bar */}
+   245→      <div
+   246→        ref={statsRef}
+   247→        className={`relative z-10 mx-auto mt-20 max-w-4xl rounded-sm border border-border/50 bg-card/60 backdrop-blur-md p-8 md:p-10 transition-all duration-1000 ${statsVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+   248→      >
+   249→        <div className="flex flex-col items-center justify-center gap-8 md:flex-row md:gap-0">
+   250→          <StatCounter
+   251→            target={2400}
+   252→            suffix="+"
+   253→            label={t("heroStat1Label")}
+   254→            start={statsVisible}
+   255→          />
+   256→          <div className="hidden md:block stat-divider mx-10 h-12 w-px" />
+   257→          <StatCounter
+   258→            target={850}
+   259→            suffix="K+"
+   260→            label={t("heroStat2Label")}
+   261→            start={statsVisible}
+   262→          />
+   263→          <div className="hidden md:block stat-divider mx-10 h-12 w-px" />
+   264→          <StatCounter
+   265→            target={4}
+   266→            suffix=""
+   267→            label={t("heroStat3Label")}
+   268→            start={statsVisible}
+   269→          />
+   270→        </div>
+   271→      </div>
+   272→    </section>
+   273→  );
+   274→}
+   275→
+   276→/* ------------------------------------------------------------------ */
+   277→/*  How It Works (Stripe-style 3-step)                                */
+   278→/* ------------------------------------------------------------------ */
+   279→
+   280→export function HowItWorks() {
+   281→  const { t } = useLang();
+   282→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   283→  const [stepsRef, stepsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.2 });
+   284→
+   285→  const steps = [
+   286→    {
+   287→      num: "01",
+   288→      icon: QrCode,
+   289→      title: t("howStep1Title"),
+   290→      desc: t("howStep1Desc"),
+   291→    },
+   292→    {
+   293→      num: "02",
+   294→      icon: Camera,
+   295→      title: t("howStep2Title"),
+   296→      desc: t("howStep2Desc"),
+   297→    },
+   298→    {
+   299→      num: "03",
+   300→      icon: Upload,
+   301→      title: t("howStep3Title"),
+   302→      desc: t("howStep3Desc"),
+   303→    },
+   304→  ];
+   305→
+   306→  return (
+   307→    <section className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   308→      {/* Header */}
+   309→      <div
+   310→        ref={headerRef}
+   311→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   312→      >
+   313→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   314→          {t("howKicker")}
+   315→        </p>
+   316→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl text-balance">
+   317→          {t("howTitle")}
+   318→        </h2>
+   319→      </div>
+   320→
+   321→      {/* Steps */}
+   322→      <div
+   323→        ref={stepsRef}
+   324→        className={`stagger mt-16 transition-all duration-700 ${stepsVisible ? "is-visible" : ""}`}
+   325→      >
+   326→        <div className="relative grid gap-10 md:grid-cols-3 md:gap-8">
+   327→          {/* Connecting line – desktop only */}
+   328→          <div className="pointer-events-none absolute top-10 left-[16.6%] right-[16.6%] hidden h-px md:block">
+   329→            <div className="h-full w-full border-t-2 border-dashed border-border/60" />
+   330→          </div>
+   331→
+   332→          {steps.map((step) => (
+   333→            <div
+   334→              key={step.num}
+   335→              className="reveal relative flex flex-col items-center text-center"
+   336→            >
+   337→              {/* Numbered circle */}
+   338→              <div className="relative z-10 grid size-20 place-items-center rounded-full border-2 border-border bg-card shadow-card">
+   339→                <span className="font-display text-sm font-bold tracking-widest text-muted-foreground">
+   340→                  {step.num}
+   341→                </span>
+   342→                <step.icon className="absolute -bottom-1 -right-1 size-7 rounded-full bg-primary p-1.5 text-primary-foreground shadow-glow" />
+   343→              </div>
+   344→
+   345→              <h3 className="mt-6 font-display text-xl text-foreground">{step.title}</h3>
+   346→              <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+   347→                {step.desc}
+   348→              </p>
+   349→            </div>
+   350→          ))}
+   351→        </div>
+   352→      </div>
+   353→    </section>
+   354→  );
+   355→}
+   356→
+   357→/* ------------------------------------------------------------------ */
+   358→/*  Features (Linear / Vercel card style)                             */
+   359→/* ------------------------------------------------------------------ */
+   360→
+   361→export function Features() {
+   362→  const { t } = useLang();
+   363→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   364→  const [gridRef, gridVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   365→
+   366→  const items = [
+   367→    { icon: QrCode, title: t("f1t"), desc: t("f1d") },
+   368→    { icon: ScanFace, title: t("f2t"), desc: t("f2d") },
+   369→    { icon: WifiOff, title: t("f3t"), desc: t("f3d") },
+   370→    { icon: MessageCircle, title: t("f4t"), desc: t("f4d") },
+   371→    { icon: Tv, title: t("f5t"), desc: t("f5d") },
+   372→    { icon: CreditCard, title: t("f6t"), desc: t("f6d") },
+   373→  ];
+   374→
+   375→  return (
+   376→    <section id="features" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   377→      {/* Header */}
+   378→      <div
+   379→        ref={headerRef}
+   380→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   381→      >
+   382→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   383→          {t("featuresKicker")}
+   384→        </p>
+   385→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   386→          {t("featuresTitle")}
+   387→        </h2>
+   388→      </div>
+   389→
+   390→      {/* Cards Grid */}
+   391→      <div
+   392→        ref={gridRef}
+   393→        className={`stagger mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 transition-all duration-700 ${gridVisible ? "is-visible" : ""}`}
+   394→      >
+   395→        {items.map((it) => (
+   396→          <article key={it.title} className="glass-card group">
+   397→            <span className="grid size-11 place-items-center rounded-full bg-secondary text-primary transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+   398→              <it.icon className="size-5" />
+   399→            </span>
+   400→            <h3 className="mt-5 font-display text-xl text-card-foreground">{it.title}</h3>
+   401→            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{it.desc}</p>
+   402→          </article>
+   403→        ))}
+   404→      </div>
+   405→    </section>
+   406→  );
+   407→}
+   408→
+   409→/* ------------------------------------------------------------------ */
+   410→/*  Pricing (MZN)                                                     */
+   411→/* ------------------------------------------------------------------ */
+   412→
+   413→export function Pricing() {
+   414→  const { lang, t } = useLang();
+   415→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   416→  const [cardsRef, cardsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   417→
+   418→  const plans = [
+   419→    {
+   420→      name: t("planFree"),
+   421→      price: "0",
+   422→      unit: "MZN",
+   423→      period: t("perEvent"),
+   424→      alt: "",
+   425→      features:
+   426→        lang === "pt"
+   427→          ? ["1 evento", "50 fotos", "Acesso 7 dias", "Marca de água"]
+   428→          : ["1 event", "50 photos", "7-day access", "Watermarked"],
+   429→      cta: t("startFree"),
+   430→      highlight: false,
+   431→    },
+   432→    {
+   433→      name: t("planPremium"),
+   434→      price: "1.890",
+   435→      unit: "MZN",
+   436→      period: t("perEvent"),
+   437→      alt: `1.190 MZN${t("perMonth")}`,
+   438→      features:
+   439→        lang === "pt"
+   440→          ? [
+   441→              "Fotos ilimitadas",
+   442→              "Acesso 90 dias",
+   443→              "Sem marca de água",
+   444→              "Reconhecimento facial",
+   445→              "Mural ao vivo",
+   446→            ]
+   447→          : [
+   448→              "Unlimited photos",
+   449→              "90-day access",
+   450→              "No watermark",
+   451→              "Face recognition",
+   452→              "Live wall",
+   453→            ],
+   454→      cta: t("choose"),
+   455→      highlight: true,
+   456→    },
+   457→    {
+   458→      name: t("planPro"),
+   459→      price: "6.340",
+   460→      unit: "MZN",
+   461→      period: t("perEvent"),
+   462→      alt: `3.780 MZN${t("perMonth")}`,
+   463→      features:
+   464→        lang === "pt"
+   465→          ? [
+   466→              "Tudo do Premium",
+   467→              "Marca personalizada",
+   468→              "Acesso para fotógrafo",
+   469→              "Analytics",
+   470→              "Vídeos",
+   471→              "Suporte prioritário",
+   472→            ]
+   473→          : [
+   474→              "Everything in Premium",
+   475→              "Custom branding",
+   476→              "Photographer access",
+   477→              "Analytics",
+   478→              "Video uploads",
+   479→              "Priority support",
+   480→            ],
+   481→      cta: t("choose"),
+   482→      highlight: false,
+   483→    },
+   484→  ];
+   485→
+   486→  return (
+   487→    <section
+   488→      id="pricing"
+   489→      className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28"
+   490→    >
+   491→      {/* Header */}
+   492→      <div
+   493→        ref={headerRef}
+   494→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   495→      >
+   496→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   497→          {t("pricingKicker")}
+   498→        </p>
+   499→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   500→          {t("pricingTitle")}
+   501→        </h2>
+   502→        <p className="mt-3 text-sm text-muted-foreground">{t("pricingSub")}</p>
+   503→        <span className="mt-3 inline-block rounded-full border border-border/60 bg-card/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground backdrop-blur-sm">
+   504→          {t("pricingMZN")}
+   505→        </span>
+   506→      </div>
+   507→
+   508→      {/* Cards */}
+   509→      <div
+   510→        ref={cardsRef}
+   511→        className={`stagger mt-14 grid gap-6 lg:grid-cols-3 transition-all duration-700 ${cardsVisible ? "is-visible" : ""}`}
+   512→      >
+   513→        {plans.map((p, idx) => (
+   514→          <article
+   515→            key={p.name}
+   516→            className={`reveal-scale relative flex flex-col rounded-sm border p-8 transition-all duration-500 hover:-translate-y-1 ${
+   517→              p.highlight
+   518→                ? "pricing-highlight border-foreground/20 bg-card"
+   519→                : "glass-card border-border bg-card/80"
+   520→            }`}
+   521→            style={{ transitionDelay: `${idx * 120}ms` }}
+   522→          >
+   523→            {p.highlight && (
+   524→              <span className="absolute -top-3 left-8 flex items-center gap-1.5 bg-foreground px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-background">
+   525→                <Sparkles className="size-3" />
+   526→                {t("popular")}
+   527→              </span>
+   528→            )}
+   529→
+   530→            <h3 className="font-display text-2xl text-card-foreground">{p.name}</h3>
+   531→
+   532→            <p className="mt-5 flex items-baseline gap-1">
+   533→              <span className="font-display text-4xl text-foreground">{p.price}</span>
+   534→              <span className="text-sm font-medium text-muted-foreground">{p.unit}</span>
+   535→            </p>
+   536→            <p className="mt-1 text-xs text-muted-foreground">{p.period}</p>
+   537→            {p.alt && (
+   538→              <p className="mt-1 text-xs text-primary/80 font-medium">{p.alt}</p>
+   539→            )}
+   540→
+   541→            <ul className="mt-8 flex-1 space-y-3 text-sm">
+   542→              {p.features.map((f) => (
+   543→                <li key={f} className="flex items-start gap-3 text-muted-foreground">
+   544→                  <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+   545→                  {f}
+   546→                </li>
+   547→              ))}
+   548→            </ul>
+   549→
+   550→            <a
+   551→              href="#top"
+   552→              className={`btn-magnetic mt-9 inline-flex items-center justify-center rounded-sm px-6 py-3.5 text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+   553→                p.highlight
+   554→                  ? "btn-glow bg-foreground text-background hover:bg-primary"
+   555→                  : "border border-foreground text-foreground hover:bg-foreground hover:text-background"
+   556→              }`}
+   557→            >
+   558→              {p.cta}
+   559→              <ArrowRight className="ml-1.5 size-3.5" />
+   560→            </a>
+   561→          </article>
+   562→        ))}
+   563→      </div>
+   564→    </section>
+   565→  );
+   566→}
+   567→
+   568→/* ------------------------------------------------------------------ */
+   569→/*  Testimonials                                                      */
+   570→/* ------------------------------------------------------------------ */
+   571→
+   572→export function Testimonials() {
+   573→  const { lang, t } = useLang();
+   574→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   575→  const [cardsRef, cardsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   576→
+   577→  const items =
+   578→    lang === "pt"
+   579→      ? [
+   580→          {
+   581→            q: "Recebemos 900 fotos dos convidados antes do bolo ser cortado. Mágico.",
+   582→            n: "Ana & Nuno",
+   583→            e: "Casamento, Maputo",
+   584→          },
+   585→          {
+   586→            q: "O mural ao vivo foi a estrela da festa. Toda a gente queria aparecer.",
+   587→            n: "Kelvin Dos Santos",
+   588→            e: "Aniversário, Luanda",
+   589→          },
+   590→          {
+   591→            q: "Entrego galerias aos clientes em minutos, sem WeTransfer.",
+   592→            n: "Bia Ferreira",
+   593→            e: "Fotógrafa, São Paulo",
+   594→          },
+   595→        ]
+   596→      : [
+   597→          {
+   598→            q: "We got 900 guest photos before the cake was cut. Magical.",
+   599→            n: "Ana & Nuno",
+   600→            e: "Wedding, Maputo",
+   601→          },
+   602→          {
+   603→            q: "The live wall was the star of the party. Everyone wanted to be on it.",
+   604→            n: "Kelvin Dos Santos",
+   605→            e: "Birthday, Luanda",
+   606→          },
+   607→          {
+   608→            q: "I deliver client galleries in minutes, no WeTransfer.",
+   609→            n: "Bia Ferreira",
+   610→            e: "Photographer, São Paulo",
+   611→          },
+   612→        ];
+   613→
+   614→  return (
+   615→    <section id="stories" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   616→      {/* Header */}
+   617→      <div
+   618→        ref={headerRef}
+   619→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   620→      >
+   621→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   622→          {t("testiKicker")}
+   623→        </p>
+   624→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   625→          {t("testiTitle")}
+   626→        </h2>
+   627→      </div>
+   628→
+   629→      {/* Cards */}
+   630→      <div
+   631→        ref={cardsRef}
+   632→        className={`stagger mt-14 grid gap-6 md:grid-cols-3 transition-all duration-700 ${cardsVisible ? "is-visible" : ""}`}
+   633→      >
+   634→        {items.map((i) => (
+   635→          <figure key={i.n} className="glass-card relative overflow-hidden rounded-sm p-8">
+   636→            {/* Star area with light-leak glow */}
+   637→            <div className="light-leak relative flex gap-1">
+   638→              {Array.from({ length: 5 }).map((_, k) => (
+   639→                <Star key={k} className="size-4 fill-primary text-primary" />
+   640→              ))}
+   641→            </div>
+   642→            <blockquote className="mt-5 font-display text-lg leading-snug text-card-foreground">
+   643→              &ldquo;{i.q}&rdquo;
+   644→            </blockquote>
+   645→            <figcaption className="mt-5 text-sm text-muted-foreground">
+   646→              <span className="font-semibold text-foreground">{i.n}</span> · {i.e}
+   647→            </figcaption>
+   648→          </figure>
+   649→        ))}
+   650→      </div>
+   651→    </section>
+   652→  );
+   653→}
+   654→
+   655→/* ------------------------------------------------------------------ */
+   656→/*  Final CTA                                                         */
+   657→/* ------------------------------------------------------------------ */
+   658→
+   659→export function FinalCta() {
+   660→  const { t } = useLang();
+   661→  const [ref, isVisible] = useScrollReveal<HTMLDivElement>();
+   662→
+   663→  return (
+   664→    <section className="mx-auto max-w-6xl px-6 pb-20 md:px-12">
+   665→      <div
+   666→        ref={ref}
+   667→        className={`gradient-mesh relative overflow-hidden rounded-sm border border-border/60 bg-secondary px-6 py-16 text-center md:px-12 md:py-24 transition-all duration-1000 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
+   668→      >
+   669→        <div className="noise-overlay pointer-events-none absolute inset-0" />
+   670→        <div className="relative z-10 mx-auto max-w-2xl">
+   671→          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground backdrop-blur-sm">
+   672→            <Eye className="size-3.5 text-primary" />
+   673→            {t("howKicker")}
+   674→          </div>
+   675→          <h2 className="font-display text-3xl text-foreground md:text-5xl text-balance">
+   676→            {t("ctaTitle")}
+   677→          </h2>
+   678→          <p className="mt-4 text-muted-foreground text-balance">{t("ctaSub")}</p>
+   679→          <a
+   680→            href="#pricing"
+   681→            className="btn-glow mt-8 inline-flex items-center gap-2 rounded-sm bg-foreground px-8 py-4 text-xs font-bold uppercase tracking-widest text-background shadow-soft transition-colors hover:bg-primary"
+   682→          >
+   683→            {t("heroCta")} <ArrowRight className="size-4" />
+   684→          </a>
+   685→        </div>
+   686→      </div>
+   687→    </section>
+   688→  );
+   689→}
+   690→
+   691→/* ------------------------------------------------------------------ */
+   692→/*  Footer                                                            */
+   693→/* ------------------------------------------------------------------ */
+   694→
+   695→export function SiteFooter() {
+   696→  const { t } = useLang();
+   697→
+   698→  return (
+   699→    <footer className="border-t border-border/60">
+   700→      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:px-12 md:grid-cols-[1.4fr_1fr_1fr]">
+   701→        {/* Brand column */}
+   702→        <div>
+   703→          <p className="font-display text-2xl italic text-foreground">Memoir</p>
+   704→          <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+   705→            {t("footerTag")}
+   706→          </p>
+   707→          <p className="mt-4 text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60">
+   708→            {t("footerMZN")}
+   709→          </p>
+   710→        </div>
+   711→
+   712→        {/* Product column */}
+   713→        <div className="text-sm">
+   714→          <p className="font-semibold text-foreground">{t("footerProduct")}</p>
+   715→          <ul className="mt-4 space-y-3 text-muted-foreground">
+   716→            <li>
+   717→              <a href="#features" className="transition-colors hover:text-foreground">
+   718→                {t("navFeatures")}
+   719→              </a>
+   720→            </li>
+   721→            <li>
+   722→              <a href="#pricing" className="transition-colors hover:text-foreground">
+   723→                {t("navPricing")}
+   724→              </a>
+   725→            </li>
+   726→            <li>
+   727→              <a href="#stories" className="transition-colors hover:text-foreground">
+   728→                {t("navStories")}
+   729→              </a>
+   730→            </li>
+   731→          </ul>
+   732→        </div>
+   733→
+   734→        {/* Legal column */}
+   735→        <div className="text-sm">
+   736→          <p className="font-semibold text-foreground">{t("footerLegal")}</p>
+   737→          <ul className="mt-4 space-y-3 text-muted-foreground">
+   738→            <li>
+   739→              <a href="#top" className="transition-colors hover:text-foreground">
+   740→                {t("navStart") === "Criar galeria" ? "Privacidade" : "Privacy"}
+   741→              </a>
+   742→            </li>
+   743→            <li>
+   744→              <a href="#top" className="transition-colors hover:text-foreground">
+   745→                {t("navStart") === "Criar galeria" ? "Termos" : "Terms"}
+   746→              </a>
+   747→            </li>
+   748→          </ul>
+   749→        </div>
+   750→      </div>
+   751→
+   752→      <div className="border-t border-border/40 px-6 py-6 text-center">
+   753→        <p className="text-xs text-muted-foreground">
+   754→          © {new Date().getFullYear()} Memoir. {t("rights")}
+   755→        </p>
+   756→      </div>
+   757→    </footer>
+   758→  );
+   759→}
+   760→

@@ -1,0 +1,709 @@
+    51→        animationDelay: delay,
+    52→        "--rotation": rotate.includes("-") ? "-2deg" : "2deg",
+    53→        "--float-duration": floatDuration,
+    54→      } as React.CSSProperties}
+    55→    >
+    56→      <div className="overflow-hidden">
+    57→        <img
+    58→          src={src}
+    59→          alt={alt}
+    60→          loading="lazy"
+    61→          className={`w-full ${aspect} object-cover grayscale-[20%] group-hover:grayscale-0 sepia-[15%] group-hover:sepia-0 transition-all duration-700 ken-burns`}
+    62→        />
+    63→      </div>
+    64→      {caption && (
+    65→        <p className="mt-3 text-center font-display text-[10px] italic text-muted-foreground">
+    66→          {caption}
+    67→        </p>
+    68→      )}
+    69→    </div>
+    70→  );
+    71→}
+    72→
+    73→const polaroids = [
+    74→  {
+    75→    src: hero1,
+    76→    alt: "Noiva a rir num casamento em Maputo",
+    77→    caption: "Maputo, Outono 2023",
+    78→    aspect: "aspect-[3/4]",
+    79→    rotate: "-rotate-2",
+    80→    delay: "0ms",
+    81→    floatDuration: "7s",
+    82→  },
+    83→  {
+    84→    src: hero4,
+    85→    alt: "Brinde com champanhe numa celebração elegante",
+    86→    caption: "",
+    87→    aspect: "aspect-square",
+    88→    rotate: "rotate-1",
+    89→    delay: "150ms",
+    90→    floatDuration: "8s",
+    91→  },
+    92→  {
+    93→    src: hero2,
+    94→    alt: "Convidados a dançar numa celebração em Luanda",
+    95→    caption: "",
+    96→    aspect: "aspect-square",
+    97→    rotate: "rotate-3",
+    98→    delay: "300ms",
+    99→    floatDuration: "6.5s",
+   100→  },
+   101→  {
+   102→    src: hero3,
+   103→    alt: "Amigos abraçados ao pôr do sol",
+   104→    caption: "Cascais, Verão 2024",
+   105→    aspect: "aspect-[3/4]",
+   106→    rotate: "-rotate-1",
+   107→    delay: "450ms",
+   108→    floatDuration: "9s",
+   109→  },
+   110→] as const;
+   111→
+   112→/* ------------------------------------------------------------------ */
+   113→/*  Hero                                                              */
+   114→/* ------------------------------------------------------------------ */
+   115→
+   116→function StatCounter({
+   117→  target,
+   118→  suffix,
+   119→  label,
+   120→  start,
+   121→}: {
+   122→  target: number;
+   123→  suffix: string;
+   124→  label: string;
+   125→  start: boolean;
+   126→}) {
+   127→  const count = useCounter(target, 2200, start);
+   128→  return (
+   129→    <div className="text-center">
+   130→      <p className="font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+   131→        {count.toLocaleString()}
+   132→        {suffix}
+   133→      </p>
+   134→      <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+   135→        {label}
+   136→      </p>
+   137→    </div>
+   138→  );
+   139→}
+   140→
+   141→export function Hero() {
+   142→  const { t } = useLang();
+   143→  const parallaxOffset = useParallax(0.15);
+   144→  const [statsRef, statsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
+   145→
+   146→  return (
+   147→    <section className="gradient-mesh relative overflow-hidden px-6 pb-20 pt-32 md:px-12 md:pb-28 md:pt-40">
+   148→      {/* Subtle noise texture overlay */}
+   149→      <div className="noise-overlay pointer-events-none absolute inset-0 z-0" />
+   150→
+   151→      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-12 lg:gap-20">
+   152→        {/* Narrative Column */}
+   153→        <div className="animate-rise lg:col-span-5">
+   154→          <div className="space-y-4">
+   155→            <span className="text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground">
+   156→              Est. 2024
+   157→            </span>
+   158→            <h1 className="font-display text-5xl italic leading-none text-foreground md:text-7xl lg:text-8xl">
+   159→              Memoir
+   160→            </h1>
+   161→          </div>
+   162→
+   163→          <div className="mt-8 space-y-6">
+   164→            <h2 className="font-display text-2xl leading-tight text-foreground md:text-4xl text-balance">
+   165→              {t("heroTitle")}
+   166→            </h2>
+   167→            <p className="max-w-md text-base leading-relaxed text-muted-foreground md:text-lg text-balance">
+   168→              {t("heroSub")}
+   169→            </p>
+   170→          </div>
+   171→
+   172→          {/* No-app highlight */}
+   173→          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-2 backdrop-blur-sm">
+   174→            <Zap className="size-4 text-primary" />
+   175→            <span className="text-sm font-semibold text-foreground">{t("heroNoApp")}</span>
+   176→          </div>
+   177→          <p className="-mt-2 ml-1 max-w-xs pl-6 text-xs leading-relaxed text-muted-foreground">
+   178→            {t("heroNoAppSub")}
+   179→          </p>
+   180→
+   181→          {/* CTAs */}
+   182→          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+   183→            <a
+   184→              href="/e/casamento-ana-nuno-2024"
+   185→              className="btn-glow inline-flex items-center justify-center gap-2 rounded-sm bg-foreground px-8 py-4 text-xs font-bold uppercase tracking-widest text-background shadow-soft transition-colors hover:bg-primary"
+   186→            >
+   187→              {t("heroCta")} <ArrowRight className="size-4" />
+   188→            </a>
+   189→            <a
+   190→              href="#features"
+   191→              className="inline-flex items-center justify-center gap-2 border-b border-primary px-2 py-4 text-xs font-bold uppercase tracking-widest text-foreground transition-colors hover:text-muted-foreground"
+   192→            >
+   193→              {t("heroCta2")}
+   194→            </a>
+   195→          </div>
+   196→
+   197→          {/* Social proof strip */}
+   198→          <div className="mt-12 flex items-center gap-6 border-t border-border/50 pt-8">
+   199→            <div className="flex -space-x-3">
+   200→              <div className="grid size-12 place-items-center rounded-full border-4 border-background bg-primary text-[10px] font-bold text-primary-foreground">
+   201→                AI
+   202→              </div>
+   203→              <div className="size-12 overflow-hidden rounded-full border-4 border-background bg-secondary">
+   204→                <img
+   205→                  src={hero2}
+   206→                  alt="Convidado sorridente"
+   207→                  className="h-full w-full object-cover"
+   208→                />
+   209→              </div>
+   210→            </div>
+   211→            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+   212→              {t("navStart") === "Criar galeria"
+   213→                ? "Correspondência inteligente"
+   214→                : "Intelligent matching"}
+   215→              <br />
+   216→              {t("navStart") === "Criar galeria"
+   217→                ? "Privado por design"
+   218→                : "Private by design"}
+   219→            </p>
+   220→          </div>
+   221→        </div>
+   222→
+   223→        {/* Analog Masonry Grid – parallax */}
+   224→        <div
+   225→          className="relative lg:col-span-7"
+   226→          style={{ transform: `translateY(${parallaxOffset}px)` }}
+   227→        >
+   228→          <div className="grid grid-cols-2 gap-4 md:gap-8">
+   229→            <div className="space-y-4 md:space-y-8">
+   230→              <Polaroid {...polaroids[0]} />
+   231→              <Polaroid {...polaroids[1]} />
+   232→            </div>
+   233→            <div className="space-y-4 md:space-y-8 pt-12">
+   234→              <Polaroid {...polaroids[2]} />
+   235→              <Polaroid {...polaroids[3]} />
+   236→            </div>
+   237→          </div>
+   238→          {/* Decorative border frame */}
+   239→          <div className="pointer-events-none absolute -z-10 top-1/2 left-1/2 h-[80%] w-[120%] -translate-x-1/2 -translate-y-1/2 border border-border/30" />
+   240→        </div>
+   241→      </div>
+   242→
+   243→      {/* Animated Stats Bar */}
+   244→      <div
+   245→        ref={statsRef}
+   246→        className={`relative z-10 mx-auto mt-20 max-w-4xl rounded-sm border border-border/50 bg-card/60 backdrop-blur-md p-8 md:p-10 transition-all duration-1000 ${statsVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+   247→      >
+   248→        <div className="flex flex-col items-center justify-center gap-8 md:flex-row md:gap-0">
+   249→          <StatCounter
+   250→            target={2400}
+   251→            suffix="+"
+   252→            label={t("heroStat1Label")}
+   253→            start={statsVisible}
+   254→          />
+   255→          <div className="hidden md:block stat-divider mx-10 h-12 w-px" />
+   256→          <StatCounter
+   257→            target={850}
+   258→            suffix="K+"
+   259→            label={t("heroStat2Label")}
+   260→            start={statsVisible}
+   261→          />
+   262→          <div className="hidden md:block stat-divider mx-10 h-12 w-px" />
+   263→          <StatCounter
+   264→            target={4}
+   265→            suffix=""
+   266→            label={t("heroStat3Label")}
+   267→            start={statsVisible}
+   268→          />
+   269→        </div>
+   270→      </div>
+   271→    </section>
+   272→  );
+   273→}
+   274→
+   275→/* ------------------------------------------------------------------ */
+   276→/*  How It Works (Stripe-style 3-step)                                */
+   277→/* ------------------------------------------------------------------ */
+   278→
+   279→export function HowItWorks() {
+   280→  const { t } = useLang();
+   281→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   282→  const [stepsRef, stepsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.2 });
+   283→
+   284→  const steps = [
+   285→    {
+   286→      num: "01",
+   287→      icon: QrCode,
+   288→      title: t("howStep1Title"),
+   289→      desc: t("howStep1Desc"),
+   290→    },
+   291→    {
+   292→      num: "02",
+   293→      icon: Camera,
+   294→      title: t("howStep2Title"),
+   295→      desc: t("howStep2Desc"),
+   296→    },
+   297→    {
+   298→      num: "03",
+   299→      icon: Upload,
+   300→      title: t("howStep3Title"),
+   301→      desc: t("howStep3Desc"),
+   302→    },
+   303→  ];
+   304→
+   305→  return (
+   306→    <section className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   307→      {/* Header */}
+   308→      <div
+   309→        ref={headerRef}
+   310→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   311→      >
+   312→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   313→          {t("howKicker")}
+   314→        </p>
+   315→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl text-balance">
+   316→          {t("howTitle")}
+   317→        </h2>
+   318→      </div>
+   319→
+   320→      {/* Steps */}
+   321→      <div
+   322→        ref={stepsRef}
+   323→        className={`stagger mt-16 transition-all duration-700 ${stepsVisible ? "is-visible" : ""}`}
+   324→      >
+   325→        <div className="relative grid gap-10 md:grid-cols-3 md:gap-8">
+   326→          {/* Connecting line – desktop only */}
+   327→          <div className="pointer-events-none absolute top-10 left-[16.6%] right-[16.6%] hidden h-px md:block">
+   328→            <div className="h-full w-full border-t-2 border-dashed border-border/60" />
+   329→          </div>
+   330→
+   331→          {steps.map((step) => (
+   332→            <div
+   333→              key={step.num}
+   334→              className="reveal relative flex flex-col items-center text-center"
+   335→            >
+   336→              {/* Numbered circle */}
+   337→              <div className="relative z-10 grid size-20 place-items-center rounded-full border-2 border-border bg-card shadow-card">
+   338→                <span className="font-display text-sm font-bold tracking-widest text-muted-foreground">
+   339→                  {step.num}
+   340→                </span>
+   341→                <step.icon className="absolute -bottom-1 -right-1 size-7 rounded-full bg-primary p-1.5 text-primary-foreground shadow-glow" />
+   342→              </div>
+   343→
+   344→              <h3 className="mt-6 font-display text-xl text-foreground">{step.title}</h3>
+   345→              <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+   346→                {step.desc}
+   347→              </p>
+   348→            </div>
+   349→          ))}
+   350→        </div>
+   351→      </div>
+   352→    </section>
+   353→  );
+   354→}
+   355→
+   356→/* ------------------------------------------------------------------ */
+   357→/*  Features (Linear / Vercel card style)                             */
+   358→/* ------------------------------------------------------------------ */
+   359→
+   360→export function Features() {
+   361→  const { t } = useLang();
+   362→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   363→  const [gridRef, gridVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   364→
+   365→  const items = [
+   366→    { icon: QrCode, title: t("f1t"), desc: t("f1d") },
+   367→    { icon: ScanFace, title: t("f2t"), desc: t("f2d") },
+   368→    { icon: WifiOff, title: t("f3t"), desc: t("f3d") },
+   369→    { icon: MessageCircle, title: t("f4t"), desc: t("f4d") },
+   370→    { icon: Tv, title: t("f5t"), desc: t("f5d") },
+   371→    { icon: CreditCard, title: t("f6t"), desc: t("f6d") },
+   372→  ];
+   373→
+   374→  return (
+   375→    <section id="features" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   376→      {/* Header */}
+   377→      <div
+   378→        ref={headerRef}
+   379→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   380→      >
+   381→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   382→          {t("featuresKicker")}
+   383→        </p>
+   384→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   385→          {t("featuresTitle")}
+   386→        </h2>
+   387→      </div>
+   388→
+   389→      {/* Cards Grid */}
+   390→      <div
+   391→        ref={gridRef}
+   392→        className={`stagger mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 transition-all duration-700 ${gridVisible ? "is-visible" : ""}`}
+   393→      >
+   394→        {items.map((it) => (
+   395→          <article key={it.title} className="glass-card group">
+   396→            <span className="grid size-11 place-items-center rounded-full bg-secondary text-primary transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+   397→              <it.icon className="size-5" />
+   398→            </span>
+   399→            <h3 className="mt-5 font-display text-xl text-card-foreground">{it.title}</h3>
+   400→            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{it.desc}</p>
+   401→          </article>
+   402→        ))}
+   403→      </div>
+   404→    </section>
+   405→  );
+   406→}
+   407→
+   408→/* ------------------------------------------------------------------ */
+   409→/*  Pricing (MZN)                                                     */
+   410→/* ------------------------------------------------------------------ */
+   411→
+   412→export function Pricing() {
+   413→  const { lang, t } = useLang();
+   414→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   415→  const [cardsRef, cardsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   416→
+   417→  const plans = [
+   418→    {
+   419→      name: t("planFree"),
+   420→      price: "0",
+   421→      unit: "MZN",
+   422→      period: t("perEvent"),
+   423→      alt: "",
+   424→      features:
+   425→        lang === "pt"
+   426→          ? ["1 evento", "50 fotos", "Acesso 7 dias", "Marca de água"]
+   427→          : ["1 event", "50 photos", "7-day access", "Watermarked"],
+   428→      cta: t("startFree"),
+   429→      highlight: false,
+   430→    },
+   431→    {
+   432→      name: t("planPremium"),
+   433→      price: "1.890",
+   434→      unit: "MZN",
+   435→      period: t("perEvent"),
+   436→      alt: `1.190 MZN${t("perMonth")}`,
+   437→      features:
+   438→        lang === "pt"
+   439→          ? [
+   440→              "Fotos ilimitadas",
+   441→              "Acesso 90 dias",
+   442→              "Sem marca de água",
+   443→              "Reconhecimento facial",
+   444→              "Mural ao vivo",
+   445→            ]
+   446→          : [
+   447→              "Unlimited photos",
+   448→              "90-day access",
+   449→              "No watermark",
+   450→              "Face recognition",
+   451→              "Live wall",
+   452→            ],
+   453→      cta: t("choose"),
+   454→      highlight: true,
+   455→    },
+   456→    {
+   457→      name: t("planPro"),
+   458→      price: "6.340",
+   459→      unit: "MZN",
+   460→      period: t("perEvent"),
+   461→      alt: `3.780 MZN${t("perMonth")}`,
+   462→      features:
+   463→        lang === "pt"
+   464→          ? [
+   465→              "Tudo do Premium",
+   466→              "Marca personalizada",
+   467→              "Acesso para fotógrafo",
+   468→              "Analytics",
+   469→              "Vídeos",
+   470→              "Suporte prioritário",
+   471→            ]
+   472→          : [
+   473→              "Everything in Premium",
+   474→              "Custom branding",
+   475→              "Photographer access",
+   476→              "Analytics",
+   477→              "Video uploads",
+   478→              "Priority support",
+   479→            ],
+   480→      cta: t("choose"),
+   481→      highlight: false,
+   482→    },
+   483→  ];
+   484→
+   485→  return (
+   486→    <section
+   487→      id="pricing"
+   488→      className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28"
+   489→    >
+   490→      {/* Header */}
+   491→      <div
+   492→        ref={headerRef}
+   493→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   494→      >
+   495→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   496→          {t("pricingKicker")}
+   497→        </p>
+   498→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   499→          {t("pricingTitle")}
+   500→        </h2>
+   501→        <p className="mt-3 text-sm text-muted-foreground">{t("pricingSub")}</p>
+   502→        <span className="mt-3 inline-block rounded-full border border-border/60 bg-card/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground backdrop-blur-sm">
+   503→          {t("pricingMZN")}
+   504→        </span>
+   505→      </div>
+   506→
+   507→      {/* Cards */}
+   508→      <div
+   509→        ref={cardsRef}
+   510→        className={`stagger mt-14 grid gap-6 lg:grid-cols-3 transition-all duration-700 ${cardsVisible ? "is-visible" : ""}`}
+   511→      >
+   512→        {plans.map((p, idx) => (
+   513→          <article
+   514→            key={p.name}
+   515→            className={`reveal-scale relative flex flex-col rounded-sm border p-8 transition-all duration-500 hover:-translate-y-1 ${
+   516→              p.highlight
+   517→                ? "pricing-highlight border-foreground/20 bg-card"
+   518→                : "glass-card border-border bg-card/80"
+   519→            }`}
+   520→            style={{ transitionDelay: `${idx * 120}ms` }}
+   521→          >
+   522→            {p.highlight && (
+   523→              <span className="absolute -top-3 left-8 flex items-center gap-1.5 bg-foreground px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-background">
+   524→                <Sparkles className="size-3" />
+   525→                {t("popular")}
+   526→              </span>
+   527→            )}
+   528→
+   529→            <h3 className="font-display text-2xl text-card-foreground">{p.name}</h3>
+   530→
+   531→            <p className="mt-5 flex items-baseline gap-1">
+   532→              <span className="font-display text-4xl text-foreground">{p.price}</span>
+   533→              <span className="text-sm font-medium text-muted-foreground">{p.unit}</span>
+   534→            </p>
+   535→            <p className="mt-1 text-xs text-muted-foreground">{p.period}</p>
+   536→            {p.alt && (
+   537→              <p className="mt-1 text-xs text-primary/80 font-medium">{p.alt}</p>
+   538→            )}
+   539→
+   540→            <ul className="mt-8 flex-1 space-y-3 text-sm">
+   541→              {p.features.map((f) => (
+   542→                <li key={f} className="flex items-start gap-3 text-muted-foreground">
+   543→                  <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+   544→                  {f}
+   545→                </li>
+   546→              ))}
+   547→            </ul>
+   548→
+   549→            <a
+   550→              href="#top"
+   551→              className={`btn-magnetic mt-9 inline-flex items-center justify-center rounded-sm px-6 py-3.5 text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+   552→                p.highlight
+   553→                  ? "btn-glow bg-foreground text-background hover:bg-primary"
+   554→                  : "border border-foreground text-foreground hover:bg-foreground hover:text-background"
+   555→              }`}
+   556→            >
+   557→              {p.cta}
+   558→              <ArrowRight className="ml-1.5 size-3.5" />
+   559→            </a>
+   560→          </article>
+   561→        ))}
+   562→      </div>
+   563→    </section>
+   564→  );
+   565→}
+   566→
+   567→/* ------------------------------------------------------------------ */
+   568→/*  Testimonials                                                      */
+   569→/* ------------------------------------------------------------------ */
+   570→
+   571→export function Testimonials() {
+   572→  const { lang, t } = useLang();
+   573→  const [headerRef, headerVisible] = useScrollReveal<HTMLDivElement>();
+   574→  const [cardsRef, cardsVisible] = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+   575→
+   576→  const items =
+   577→    lang === "pt"
+   578→      ? [
+   579→          {
+   580→            q: "Recebemos 900 fotos dos convidados antes do bolo ser cortado. Mágico.",
+   581→            n: "Ana & Nuno",
+   582→            e: "Casamento, Maputo",
+   583→          },
+   584→          {
+   585→            q: "O mural ao vivo foi a estrela da festa. Toda a gente queria aparecer.",
+   586→            n: "Kelvin Dos Santos",
+   587→            e: "Aniversário, Luanda",
+   588→          },
+   589→          {
+   590→            q: "Entrego galerias aos clientes em minutos, sem WeTransfer.",
+   591→            n: "Bia Ferreira",
+   592→            e: "Fotógrafa, São Paulo",
+   593→          },
+   594→        ]
+   595→      : [
+   596→          {
+   597→            q: "We got 900 guest photos before the cake was cut. Magical.",
+   598→            n: "Ana & Nuno",
+   599→            e: "Wedding, Maputo",
+   600→          },
+   601→          {
+   602→            q: "The live wall was the star of the party. Everyone wanted to be on it.",
+   603→            n: "Kelvin Dos Santos",
+   604→            e: "Birthday, Luanda",
+   605→          },
+   606→          {
+   607→            q: "I deliver client galleries in minutes, no WeTransfer.",
+   608→            n: "Bia Ferreira",
+   609→            e: "Photographer, São Paulo",
+   610→          },
+   611→        ];
+   612→
+   613→  return (
+   614→    <section id="stories" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:px-12 md:py-28">
+   615→      {/* Header */}
+   616→      <div
+   617→        ref={headerRef}
+   618→        className={`reveal max-w-2xl transition-all duration-700 ${headerVisible ? "is-visible" : ""}`}
+   619→      >
+   620→        <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+   621→          {t("testiKicker")}
+   622→        </p>
+   623→        <h2 className="mt-4 font-display text-3xl text-foreground md:text-5xl">
+   624→          {t("testiTitle")}
+   625→        </h2>
+   626→      </div>
+   627→
+   628→      {/* Cards */}
+   629→      <div
+   630→        ref={cardsRef}
+   631→        className={`stagger mt-14 grid gap-6 md:grid-cols-3 transition-all duration-700 ${cardsVisible ? "is-visible" : ""}`}
+   632→      >
+   633→        {items.map((i) => (
+   634→          <figure key={i.n} className="glass-card relative overflow-hidden rounded-sm p-8">
+   635→            {/* Star area with light-leak glow */}
+   636→            <div className="light-leak relative flex gap-1">
+   637→              {Array.from({ length: 5 }).map((_, k) => (
+   638→                <Star key={k} className="size-4 fill-primary text-primary" />
+   639→              ))}
+   640→            </div>
+   641→            <blockquote className="mt-5 font-display text-lg leading-snug text-card-foreground">
+   642→              &ldquo;{i.q}&rdquo;
+   643→            </blockquote>
+   644→            <figcaption className="mt-5 text-sm text-muted-foreground">
+   645→              <span className="font-semibold text-foreground">{i.n}</span> · {i.e}
+   646→            </figcaption>
+   647→          </figure>
+   648→        ))}
+   649→      </div>
+   650→    </section>
+   651→  );
+   652→}
+   653→
+   654→/* ------------------------------------------------------------------ */
+   655→/*  Final CTA                                                         */
+   656→/* ------------------------------------------------------------------ */
+   657→
+   658→export function FinalCta() {
+   659→  const { t } = useLang();
+   660→  const [ref, isVisible] = useScrollReveal<HTMLDivElement>();
+   661→
+   662→  return (
+   663→    <section className="mx-auto max-w-6xl px-6 pb-20 md:px-12">
+   664→      <div
+   665→        ref={ref}
+   666→        className={`gradient-mesh relative overflow-hidden rounded-sm border border-border/60 bg-secondary px-6 py-16 text-center md:px-12 md:py-24 transition-all duration-1000 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
+   667→      >
+   668→        <div className="noise-overlay pointer-events-none absolute inset-0" />
+   669→        <div className="relative z-10 mx-auto max-w-2xl">
+   670→          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground backdrop-blur-sm">
+   671→            <Eye className="size-3.5 text-primary" />
+   672→            {t("howKicker")}
+   673→          </div>
+   674→          <h2 className="font-display text-3xl text-foreground md:text-5xl text-balance">
+   675→            {t("ctaTitle")}
+   676→          </h2>
+   677→          <p className="mt-4 text-muted-foreground text-balance">{t("ctaSub")}</p>
+   678→          <a
+   679→            href="#pricing"
+   680→            className="btn-glow mt-8 inline-flex items-center gap-2 rounded-sm bg-foreground px-8 py-4 text-xs font-bold uppercase tracking-widest text-background shadow-soft transition-colors hover:bg-primary"
+   681→          >
+   682→            {t("heroCta")} <ArrowRight className="size-4" />
+   683→          </a>
+   684→        </div>
+   685→      </div>
+   686→    </section>
+   687→  );
+   688→}
+   689→
+   690→/* ------------------------------------------------------------------ */
+   691→/*  Footer                                                            */
+   692→/* ------------------------------------------------------------------ */
+   693→
+   694→export function SiteFooter() {
+   695→  const { t } = useLang();
+   696→
+   697→  return (
+   698→    <footer className="border-t border-border/60">
+   699→      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:px-12 md:grid-cols-[1.4fr_1fr_1fr]">
+   700→        {/* Brand column */}
+   701→        <div>
+   702→          <p className="font-display text-2xl italic text-foreground">Memoir</p>
+   703→          <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+   704→            {t("footerTag")}
+   705→          </p>
+   706→          <p className="mt-4 text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60">
+   707→            {t("footerMZN")}
+   708→          </p>
+   709→        </div>
+   710→
+   711→        {/* Product column */}
+   712→        <div className="text-sm">
+   713→          <p className="font-semibold text-foreground">{t("footerProduct")}</p>
+   714→          <ul className="mt-4 space-y-3 text-muted-foreground">
+   715→            <li>
+   716→              <a href="#features" className="transition-colors hover:text-foreground">
+   717→                {t("navFeatures")}
+   718→              </a>
+   719→            </li>
+   720→            <li>
+   721→              <a href="#pricing" className="transition-colors hover:text-foreground">
+   722→                {t("navPricing")}
+   723→              </a>
+   724→            </li>
+   725→            <li>
+   726→              <a href="#stories" className="transition-colors hover:text-foreground">
+   727→                {t("navStories")}
+   728→              </a>
+   729→            </li>
+   730→          </ul>
+   731→        </div>
+   732→
+   733→        {/* Legal column */}
+   734→        <div className="text-sm">
+   735→          <p className="font-semibold text-foreground">{t("footerLegal")}</p>
+   736→          <ul className="mt-4 space-y-3 text-muted-foreground">
+   737→            <li>
+   738→              <a href="#top" className="transition-colors hover:text-foreground">
+   739→                {t("navStart") === "Criar galeria" ? "Privacidade" : "Privacy"}
+   740→              </a>
+   741→            </li>
+   742→            <li>
+   743→              <a href="#top" className="transition-colors hover:text-foreground">
+   744→                {t("navStart") === "Criar galeria" ? "Termos" : "Terms"}
+   745→              </a>
+   746→            </li>
+   747→          </ul>
+   748→        </div>
+   749→      </div>
+   750→
+   751→      <div className="border-t border-border/40 px-6 py-6 text-center">
+   752→        <p className="text-xs text-muted-foreground">
+   753→          © {new Date().getFullYear()} Memoir. {t("rights")}
+   754→        </p>
+   755→      </div>
+   756→    </footer>
+   757→  );
+   758→}
+   759→
