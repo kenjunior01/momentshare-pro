@@ -1,0 +1,1168 @@
+     1→-- ============================================================
+     2→-- MOMENTSHARE PRO (MEMOIR) — Complete Database Schema
+     3→-- PostgreSQL / Supabase Migration
+     4→-- Designed for: Event Photo Sharing SaaS (African Market)
+     5→-- ============================================================
+     6→
+     7→-- Enable required extensions
+     8→CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+     9→CREATE EXTENSION IF NOT EXISTS "vector";          -- pgvector for face embeddings
+    10→CREATE EXTENSION IF NOT EXISTS "postgis";         -- geolocation for events
+    11→CREATE EXTENSION IF NOT EXISTS "pg_trgm";         -- fuzzy text search
+    12→CREATE EXTENSION IF NOT EXISTS "btree_gin";       -- GIN indexes on JSONB
+    13→
+    14→-- ============================================================
+    15→-- ENUMS
+    16→-- ============================================================
+    17→
+    18→CREATE TYPE user_role AS ENUM ('guest', 'organizer', 'photographer', 'admin');
+    19→CREATE TYPE event_type AS ENUM ('wedding', 'birthday', 'corporate', 'party', 'graduation', 'festival', 'religious', 'other');
+    20→CREATE TYPE event_status AS ENUM ('draft', 'upcoming', 'active', 'ended', 'archived');
+    21→CREATE TYPE privacy_mode AS ENUM ('public', 'access_code', 'invite_only');
+    22→CREATE TYPE upload_source AS ENUM ('organizer', 'photographer', 'guest', 'auto_import');
+    23→CREATE TYPE payment_provider AS ENUM ('stripe', 'mpesa', 'pix', 'paypal');
+    24→CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded');
+    25→CREATE TYPE subscription_plan AS ENUM ('free', 'premium', 'professional');
+    26→CREATE TYPE subscription_status AS ENUM ('active', 'canceled', 'past_due', 'trialing', 'paused');
+    27→CREATE TYPE notification_type AS ENUM (
+    28→  'event_created', 'photo_uploaded', 'photo_tagged', 'face_matched',
+    29→  'guest_joined', 'live_wall_started', 'payment_received', 'subscription_expiring',
+    30→  'event_ending_soon', 'new_guestbook_entry', 'system'
+    31→);
+    32→CREATE TYPE collaborator_role AS ENUM ('owner', 'photographer', 'editor', 'viewer');
+    33→CREATE TYPE face_detection_status AS ENUM ('pending', 'processing', 'completed', 'failed');
+    34→CREATE TYPE watermark_position AS ENUM ('bottom_left', 'bottom_right', 'center', 'bottom_center');
+    35→CREATE TYPE share_platform AS ENUM ('whatsapp', 'facebook', 'instagram', 'twitter', 'link_copy', 'other');
+    36→CREATE TYPE upload_queue_status AS ENUM ('pending', 'uploading', 'completed', 'failed', 'paused');
+    37→CREATE TYPE sentiment AS ENUM ('positive', 'neutral', 'negative', 'mixed');
+    38→
+    39→-- ============================================================
+    40→-- 1. USERS & AUTHENTICATION
+    41→-- ============================================================
+    42→
+    43→CREATE TABLE users (
+    44→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    45→  email           TEXT UNIQUE,
+    46→  phone           TEXT,
+    47→  phone_verified  BOOLEAN DEFAULT FALSE,
+    48→  password_hash   TEXT,                   -- bcrypt hash (Supabase Auth manages this)
+    49→  full_name       TEXT NOT NULL,
+    50→  avatar_url      TEXT,
+    51→  role            user_role NOT NULL DEFAULT 'guest',
+    52→  locale          TEXT NOT NULL DEFAULT 'pt' CHECK (locale IN ('pt', 'en')),
+    53→  country_code    CHAR(2),                 -- ISO 3166-1 alpha-2 (MZ, AO, BR, PT)
+    54→  timezone        TEXT NOT NULL DEFAULT 'Africa/Maputo',
+    55→  metadata        JSONB DEFAULT '{}',
+    56→  last_login_at   TIMESTAMPTZ,
+    57→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    58→  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    59→);
+    60→
+    61→CREATE INDEX idx_users_email ON users (email) WHERE email IS NOT NULL;
+    62→CREATE INDEX idx_users_phone ON users (phone) WHERE phone IS NOT NULL;
+    63→CREATE INDEX idx_users_role ON users (role);
+    64→CREATE INDEX idx_users_country ON users (country_code);
+    65→CREATE INDEX idx_users_created ON users (created_at DESC);
+    66→
+    67→-- User social auth providers (Google, etc.)
+    68→CREATE TABLE user_identities (
+    69→  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    70→  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    71→  provider          TEXT NOT NULL,          -- 'google', 'apple', 'phone'
+    72→  provider_user_id  TEXT NOT NULL,
+    73→  provider_email    TEXT,
+    74→  access_token      TEXT,
+    75→  refresh_token     TEXT,
+    76→  expires_at        TIMESTAMPTZ,
+    77→  metadata          JSONB DEFAULT '{}',
+    78→  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    79→  UNIQUE (provider, provider_user_id)
+    80→);
+    81→
+    82→CREATE INDEX idx_identities_user ON user_identities (user_id);
+    83→
+    84→-- User preferences
+    85→CREATE TABLE user_preferences (
+    86→  user_id          UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    87→  default_locale   TEXT NOT NULL DEFAULT 'pt',
+    88→  default_country  CHAR(2),
+    89→  email_notifications BOOLEAN DEFAULT TRUE,
+    90→  push_notifications  BOOLEAN DEFAULT TRUE,
+    91→  whatsapp_opt_in    BOOLEAN DEFAULT FALSE,
+    92→  auto_download      BOOLEAN DEFAULT FALSE,
+    93→  face_recognition_opt_in BOOLEAN DEFAULT TRUE,
+    94→  preferences       JSONB DEFAULT '{}',
+    95→  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    96→);
+    97→
+    98→-- ============================================================
+    99→-- 2. ORGANIZATIONS (for pro accounts / agencies)
+   100→-- ============================================================
+   101→
+   102→CREATE TABLE organizations (
+   103→  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   104→  name          TEXT NOT NULL,
+   105→  slug          TEXT UNIQUE NOT NULL,
+   106→  logo_url      TEXT,
+   107→  owner_id      UUID NOT NULL REFERENCES users(id),
+   108→  plan          subscription_plan NOT NULL DEFAULT 'free',
+   109→  country_code  CHAR(2),
+   110→  metadata      JSONB DEFAULT '{}',
+   111→  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   112→  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   113→);
+   114→
+   115→CREATE INDEX idx_orgs_owner ON organizations (owner_id);
+   116→CREATE INDEX idx_orgs_plan ON organizations (plan);
+   117→CREATE INDEX idx_orgs_slug ON organizations (slug);
+   118→
+   119→CREATE TABLE organization_members (
+   120→  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   121→  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+   122→  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   123→  role        collaborator_role NOT NULL DEFAULT 'viewer',
+   124→  joined_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   125→  UNIQUE (org_id, user_id)
+   126→);
+   127→
+   128→-- ============================================================
+   129→-- 3. EVENTS (Core Entity)
+   130→-- ============================================================
+   131→
+   132→CREATE TABLE events (
+   133→  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   134→  org_id              UUID REFERENCES organizations(id) ON DELETE SET NULL,
+   135→  creator_id          UUID NOT NULL REFERENCES users(id),
+   136→
+   137→  -- Basic Info
+   138→  name                TEXT NOT NULL,
+   139→  slug                TEXT NOT NULL,
+   140→  event_type          event_type NOT NULL DEFAULT 'other',
+   141→  description         TEXT,
+   142→  cover_photo_id      UUID,  -- self-ref to photos table
+   143→
+   144→  -- Scheduling
+   145→  starts_at           TIMESTAMPTZ,
+   146→  ends_at             TIMESTAMPTZ,
+   147→  timezone            TEXT NOT NULL DEFAULT 'Africa/Maputo',
+   148→
+   149→  -- Theming
+   150→  theme_name          TEXT DEFAULT 'classic_wedding',  -- preset theme key
+   151→  theme_colors        JSONB DEFAULT '{}',               -- {primary, secondary, accent, bg}
+   152→  custom_css          TEXT,                              -- optional custom CSS
+   153→
+   154→  -- Privacy
+   155→  privacy_mode        privacy_mode NOT NULL DEFAULT 'public',
+   156→  access_code         TEXT UNIQUE CHECK (access_code IS NULL OR length(access_code) >= 4),
+   157→
+   158→  -- Branding (Pro plan)
+   159→  custom_domain       TEXT UNIQUE,
+   160→  brand_logo_url      TEXT,
+   161→  brand_text          TEXT,
+   162→
+   163→  -- Features toggles
+   164→  live_wall_enabled   BOOLEAN DEFAULT FALSE,
+   165→  video_enabled       BOOLEAN DEFAULT FALSE,
+   166→  guestbook_enabled   BOOLEAN DEFAULT TRUE,
+   167→  face_recognition    BOOLEAN DEFAULT TRUE,
+   168→  guest_upload        BOOLEAN DEFAULT TRUE,
+   169→  download_enabled    BOOLEAN DEFAULT TRUE,
+   170→  watermark_enabled   BOOLEAN DEFAULT FALSE,
+   171→  watermark_text      TEXT,
+   172→  watermark_position  watermark_position DEFAULT 'bottom_right',
+   173→  watermark_opacity   DECIMAL(3,2) DEFAULT 0.70 CHECK (watermark_opacity BETWEEN 0 AND 1),
+   174→
+   175→  -- Limits
+   176→  max_photos          INT DEFAULT 50,
+   177→  max_video_mb        INT DEFAULT 500,
+   178→  storage_used_mb     DECIMAL(10,2) DEFAULT 0,
+   179→
+   180→  -- Status
+   181→  status              event_status NOT NULL DEFAULT 'draft',
+   182→
+   183→  -- Geolocation (PostGIS)
+   184→  location_name       TEXT,
+   185→  location_address    TEXT,
+   186→  location_point      GEOGRAPHY(POINT, 4326),
+   187→
+   188→  -- SEO
+   189→  og_image_url        TEXT,
+   190→  meta_title          TEXT,
+   191→  meta_description    TEXT,
+   192→
+   193→  -- Counters (denormalized for performance)
+   194→  photo_count         INT DEFAULT 0,
+   195→  guest_count         INT DEFAULT 0,
+   196→  view_count          INT DEFAULT 0,
+   197→  download_count      INT DEFAULT 0,
+   198→  share_count         INT DEFAULT 0,
+   199→
+   200→  metadata            JSONB DEFAULT '{}',
+   201→  published_at        TIMESTAMPTZ,
+   202→  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   203→  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   204→
+   205→  UNIQUE (creator_id, slug)
+   206→);
+   207→
+   208→CREATE INDEX idx_events_creator ON events (creator_id);
+   209→CREATE INDEX idx_events_org ON events (org_id) WHERE org_id IS NOT NULL;
+   210→CREATE INDEX idx_events_status ON events (status);
+   211→CREATE INDEX idx_events_type ON events (event_type);
+   212→CREATE INDEX idx_events_dates ON events (starts_at, ends_at);
+   213→CREATE INDEX idx_events_privacy ON events (privacy_mode);
+   214→CREATE INDEX idx_events_slug ON events (slug);
+   215→CREATE INDEX idx_events_location ON events USING GIST (location_point);
+   216→CREATE INDEX idx_events_search ON events USING GIN (
+   217→  (to_tsvector('portuguese', coalesce(name, '')) || to_tsvector('english', coalesce(name, '')))
+   218→);
+   219→CREATE INDEX idx_events_metadata ON events USING GIN (metadata);
+   220→
+   221→-- Event collaborators (photographers, co-organizers)
+   222→CREATE TABLE event_collaborators (
+   223→  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   224→  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   225→  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   226→  role        collaborator_role NOT NULL DEFAULT 'viewer',
+   227→  can_upload  BOOLEAN DEFAULT TRUE,
+   228→  can_delete  BOOLEAN DEFAULT FALSE,
+   229→  can_edit    BOOLEAN DEFAULT FALSE,
+   230→  invited_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   231→  accepted_at TIMESTAMPTZ,
+   232→  UNIQUE (event_id, user_id)
+   233→);
+   234→
+   235→CREATE INDEX idx_collabs_event ON event_collaborators (event_id);
+   236→CREATE INDEX idx_collabs_user ON event_collaborators (user_id);
+   237→
+   238→-- Event invite list (for invite_only mode)
+   239→CREATE TABLE event_invites (
+   240→  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   241→  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   242→  phone       TEXT,
+   243→  email       TEXT,
+   244→  name        TEXT,
+   245→  invite_code TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(6), 'hex'),
+   246→  sent_at     TIMESTAMPTZ,
+   247→  accepted_at TIMESTAMPTZ,
+   248→  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   249→  CHECK (phone IS NOT NULL OR email IS NOT NULL)
+   250→);
+   251→
+   252→CREATE INDEX idx_invites_event ON event_invites (event_id);
+   253→CREATE INDEX idx_invites_code ON event_invites (invite_code);
+   254→CREATE INDEX idx_invites_email ON event_invites (email) WHERE email IS NOT NULL;
+   255→
+   256→-- ============================================================
+   257→-- 4. PHOTOS (Core Entity)
+   258→-- ============================================================
+   259→
+   260→CREATE TABLE photos (
+   261→  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   262→  event_id            UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   263→
+   264→  -- Who uploaded
+   265→  uploader_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   266→  uploader_source     upload_source NOT NULL DEFAULT 'guest',
+   267→  uploader_guest_name TEXT,  -- for unauthenticated guests
+   268→
+   269→  -- File Storage (Supabase Storage paths)
+   270→  storage_bucket       TEXT NOT NULL DEFAULT 'event-photos',
+   271→  storage_path        TEXT NOT NULL,      -- path in bucket
+   272→  original_url        TEXT NOT NULL,      -- public CDN URL
+   273→  thumbnail_urls      JSONB NOT NULL DEFAULT '{}',
+   274→  -- {"sm": "...", "md": "...", "lg": "...", "blurhash": "..."}
+   275→
+   276→  -- Image metadata
+   277→  width               INT,
+   278→  height              INT,
+   279→  file_size_bytes     BIGINT,
+   280→  mime_type           TEXT NOT NULL DEFAULT 'image/jpeg',
+   281→  blurhash            TEXT,                -- for placeholder rendering
+   282→  dominant_color      CHAR(7),             -- hex color
+   283→  aspect_ratio        DECIMAL(5,3),
+   284→  orientation         SMALLINT,            -- EXIF orientation (1-8)
+   285→
+   286→  -- EXIF Data (extracted)
+   287→  exif_data           JSONB DEFAULT '{}',
+   288→  -- {camera_make, camera_model, lens, focal_length, aperture, iso,
+   289→  --  shutter_speed, gps_lat, gps_lng, taken_at, ...}
+   290→
+   291→  -- AI Processing
+   292→  face_detection       face_detection_status DEFAULT 'pending',
+   293→  face_count          INT DEFAULT 0,
+   294→  ai_tags             TEXT[] DEFAULT '{}',
+   295→  ai_description      TEXT,                -- AI-generated caption
+   296→  quality_score       DECIMAL(3,2),         -- 0.00-1.00 aesthetic quality
+   297→
+   298→  -- Content
+   299→  caption             TEXT,
+   300→  is_flagged          BOOLEAN DEFAULT FALSE,
+   301→  flag_reason         TEXT,
+   302→  is_favorite         BOOLEAN DEFAULT FALSE,
+   303→  is_featured         BOOLEAN DEFAULT FALSE,  -- shown on live wall
+   304→  sort_order          INT DEFAULT 0,
+   305→
+   306→  -- Counters
+   307→  view_count          INT DEFAULT 0,
+   308→  download_count      INT DEFAULT 0,
+   309→  share_count         INT DEFAULT 0,
+   310→  like_count          INT DEFAULT 0,
+   311→
+   312→  -- Timing
+   313→  taken_at            TIMESTAMPTZ,          -- from EXIF or user-set
+   314→  uploaded_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   315→  published_at        TIMESTAMPTZ,
+   316→
+   317→  -- Video support
+   318→  duration_seconds    DECIMAL(8,2),
+   319→  video_thumbnail_time DECIMAL(5,2),
+   320→
+   321→  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   322→  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   323→);
+   324→
+   325→CREATE INDEX idx_photos_event ON photos (event_id);
+   326→CREATE INDEX idx_photos_uploader ON photos (uploader_id) WHERE uploader_id IS NOT NULL;
+   327→CREATE INDEX idx_photos_taken ON photos (taken_at DESC) WHERE taken_at IS NOT NULL;
+   328→CREATE INDEX idx_photos_uploaded ON photos (uploaded_at DESC);
+   329→CREATE INDEX idx_photos_featured ON photos (event_id, is_featured) WHERE is_featured = TRUE;
+   330→CREATE INDEX idx_photos_favorite ON photos (event_id, is_favorite) WHERE is_favorite = TRUE;
+   331→CREATE INDEX idx_photos_flagged ON photos (is_flagged) WHERE is_flagged = TRUE;
+   332→CREATE INDEX idx_photos_ai_tags ON photos USING GIN (ai_tags);
+   333→CREATE INDEX idx_photos_exif ON photos USING GIN (exif_data);
+   334→CREATE INDEX idx_photos_quality ON photos (event_id, quality_score DESC NULLS LAST);
+   335→
+   336→-- ============================================================
+   337→-- 5. FACE RECOGNITION (Innovative Core)
+   338→-- ============================================================
+   339→
+   340→-- Face clusters = unique people in an event
+   341→CREATE TABLE face_clusters (
+   342→  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   343→  event_id              UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   344→
+   345→  -- Identity
+   346→  label                 TEXT,               -- name given by user ("Ana", "Noivo")
+   347→  representative_photo_id UUID REFERENCES photos(id) ON DELETE SET NULL,
+   348→
+   349→  -- ML Data
+   350→  centroid_embedding    vector(128),         -- average embedding of this person
+   351→  embedding_version     TEXT NOT NULL DEFAULT 'v1',
+   352→  sample_count         INT DEFAULT 0,
+   353→  confidence_score     DECIMAL(3,2),         -- cluster consistency 0-1
+   354→
+   355→  -- Guest self-identification
+   356→  guest_claimed_by     UUID REFERENCES users(id) ON DELETE SET NULL,
+   357→  claimed_at           TIMESTAMPTZ,
+   358→
+   359→  -- Stats
+   360→  photo_count          INT DEFAULT 0,
+   361→
+   362→  metadata             JSONB DEFAULT '{}',
+   363→  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   364→  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   365→);
+   366→
+   367→CREATE INDEX idx_clusters_event ON face_clusters (event_id);
+   368→CREATE INDEX idx_clusters_claimed ON face_clusters (guest_claimed_by) WHERE guest_claimed_by IS NOT NULL;
+   369→
+   370→-- Individual face detections in photos
+   371→CREATE TABLE face_detections (
+   372→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   373→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   374→  cluster_id      UUID REFERENCES face_clusters(id) ON DELETE SET NULL,
+   375→
+   376→  -- ML Detection data
+   377→  embedding       vector(128) NOT NULL,
+   378→  bounding_box    JSONB NOT NULL,            -- {x, y, width, height} normalized 0-1
+   379→  confidence      DECIMAL(3,2) NOT NULL,     -- detection confidence 0-1
+   380→  landmark_points JSONB,                    -- {left_eye, right_eye, nose, mouth_left, mouth_right}
+   381→  face_quality    DECIMAL(3,2),              -- blur/exposure check
+   382→
+   383→  -- Clustering status
+   384→  is_verified     BOOLEAN DEFAULT FALSE,    -- confirmed by a human
+   385→  reviewed_by     UUID REFERENCES users(id),
+   386→
+   387→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   388→);
+   389→
+   390→CREATE INDEX idx_detections_photo ON face_detections (photo_id);
+   391→CREATE INDEX idx_detections_cluster ON face_detections (cluster_id) WHERE cluster_id IS NOT NULL;
+   392→CREATE INDEX idx_detections_unassigned ON face_detections (photo_id)
+   393→  WHERE cluster_id IS NULL;
+   394→
+   395→-- IVFFlat index for fast approximate nearest-neighbor face search
+   396→CREATE INDEX idx_face_embedding ON face_detections
+   397→  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+   398→
+   399→-- HNSW index for higher quality search (alternative, uncomment to use)
+   400→-- CREATE INDEX idx_face_embedding_hnsw ON face_detections
+   401→--   USING hnsw (embedding vector_cosine_ops);
+   402→
+   403→-- Guest face scans (audit log of who searched for their face)
+   404→CREATE TABLE face_scans (
+   405→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   406→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   407→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   408→  session_fingerprint TEXT,                 -- for anonymous guests
+   409→  query_embedding vector(128),
+   410→  matched_cluster_id UUID REFERENCES face_clusters(id),
+   411→  match_confidence DECIMAL(3,2),
+   412→  photos_returned INT DEFAULT 0,
+   413→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   414→);
+   415→
+   416→CREATE INDEX idx_scans_event ON face_scans (event_id);
+   417→CREATE INDEX idx_scans_user ON face_scans (user_id) WHERE user_id IS NOT NULL;
+   418→
+   419→-- ============================================================
+   420→-- 6. QR CODES & SHARING
+   421→-- ============================================================
+   422→
+   423→CREATE TABLE qr_codes (
+   424→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   425→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   426→  code            TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(8), 'hex'),
+   427→  short_url       TEXT UNIQUE NOT NULL,      -- e.g. memoir.app/e/abc123
+   428→  full_url        TEXT NOT NULL,
+   429→
+   430→  -- Placement tracking
+   431→  placement_type  TEXT,                      -- 'invitation', 'table', 'screen', 'poster'
+   432→  label           TEXT,                      -- custom label like "Table 5"
+   433→
+   434→  -- Analytics
+   435→  scan_count      INT DEFAULT 0,
+   436→  unique_scans    INT DEFAULT 0,
+   437→  last_scanned_at TIMESTAMPTZ,
+   438→
+   439→  -- Customization
+   440→  foreground_color CHAR(7) DEFAULT '#1a1a2e',
+   441→  background_color CHAR(7) DEFAULT '#ffffff',
+   442→  logo_url        TEXT,
+   443→
+   444→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   445→  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   446→);
+   447→
+   448→CREATE INDEX idx_qr_event ON qr_codes (event_id);
+   449→CREATE INDEX idx_qr_code ON qr_codes (code);
+   450→CREATE INDEX idx_qr_short ON qr_codes (short_url);
+   451→
+   452→-- QR scan analytics (individual scans for tracking)
+   453→CREATE TABLE qr_scans (
+   454→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   455→  qr_id           UUID NOT NULL REFERENCES qr_codes(id),
+   456→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   457→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   458→  session_fingerprint TEXT,
+   459→  ip_address      INET,
+   460→  user_agent      TEXT,
+   461→  country_code    CHAR(2),
+   462→  city            TEXT,
+   463→  referred_by     TEXT,                      -- 'direct', 'whatsapp', 'instagram', etc.
+   464→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   465→);
+   466→
+   467→CREATE INDEX idx_qrscans_qr ON qr_scans (qr_id);
+   468→CREATE INDEX idx_qrscans_event ON qr_scans (event_id);
+   469→CREATE INDEX idx_qrscans_time ON qr_scans (created_at DESC);
+   470→
+   471→-- Photo/social sharing tracking
+   472→CREATE TABLE photo_shares (
+   473→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   474→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   475→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   476→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   477→  platform        share_platform NOT NULL,
+   478→  share_token     TEXT UNIQUE,                -- trackable link
+   479→  click_count     INT DEFAULT 0,
+   480→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   481→);
+   482→
+   483→CREATE INDEX idx_shares_photo ON photo_shares (photo_id);
+   484→CREATE INDEX idx_shares_event ON photo_shares (event_id);
+   485→CREATE INDEX idx_shares_token ON photo_shares (share_token) WHERE share_token IS NOT NULL;
+   486→
+   487→-- ============================================================
+   488→-- 7. GUEST BOOK
+   489→-- ============================================================
+   490→
+   491→CREATE TABLE guestbook_entries (
+   492→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   493→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   494→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   495→  guest_name      TEXT NOT NULL,
+   496→  guest_photo_url TEXT,
+   497→  message         TEXT NOT NULL,
+   498→
+   499→  -- AI Analysis
+   500→  sentiment       sentiment,
+   501→  sentiment_score DECIMAL(3,2),              -- -1.0 to 1.0
+   502→  language        TEXT,                      -- detected language
+   503→  ai_summary      TEXT,                      -- AI summary of entry
+   504→
+   505→  -- Moderation
+   506→  is_hidden       BOOLEAN DEFAULT FALSE,
+   507→  flag_reason     TEXT,
+   508→
+   509→  -- Reactions
+   510→  like_count      INT DEFAULT 0,
+   511→
+   512→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   513→);
+   514→
+   515→CREATE INDEX idx_guestbook_event ON guestbook_entries (event_id);
+   516→CREATE INDEX idx_guestbook_visible ON guestbook_entries (event_id, created_at DESC)
+   517→  WHERE is_hidden = FALSE;
+   518→CREATE INDEX idx_guestbook_sentiment ON guestbook_entries (sentiment) WHERE sentiment IS NOT NULL;
+   519→
+   520→-- ============================================================
+   521→-- 8. LIVE WALL
+   522→-- ============================================================
+   523→
+   524→CREATE TABLE live_wall_sessions (
+   525→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   526→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   527→  display_name    TEXT,                      -- e.g. "Main Screen", "VIP Area"
+   528→  started_by      UUID NOT NULL REFERENCES users(id),
+   529→
+   530→  -- Settings (JSONB for flexibility)
+   531→  settings        JSONB DEFAULT '{
+   532→    "transition": "ken_burns",
+   533→    "duration_seconds": 5,
+   534→    "show_event_name": true,
+   535→    "show_hashtag": true,
+   536→    "show_qr_overlay": true,
+   537→    "filter": "all",
+   538→    "sound_enabled": true,
+   539→    "auto_play": true
+   540→  }'::jsonb,
+   541→
+   542→  -- State
+   543→  is_active       BOOLEAN DEFAULT TRUE,
+   544→  current_photo_id UUID REFERENCES photos(id),
+   545→  viewer_count    INT DEFAULT 0,
+   546→
+   547→  started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   548→  ended_at        TIMESTAMPTZ,
+   549→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   550→);
+   551→
+   552→CREATE INDEX idx_livewall_event ON live_wall_sessions (event_id);
+   553→CREATE INDEX idx_livewall_active ON live_wall_sessions (event_id, is_active)
+   554→  WHERE is_active = TRUE;
+   555→
+   556→-- ============================================================
+   557→-- 9. UPLOAD QUEUE (Offline Support)
+   558→-- ============================================================
+   559→
+   560→CREATE TABLE upload_queue (
+   561→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   562→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   563→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   564→  session_fingerprint TEXT,
+   565→
+   566→  -- File info (stored temporarily)
+   567→  file_name       TEXT NOT NULL,
+   568→  file_size_bytes BIGINT,
+   569→  mime_type       TEXT,
+   570→  checksum        TEXT,                      -- SHA-256 for dedup
+   571→
+   572→  -- Status
+   573→  status          upload_queue_status NOT NULL DEFAULT 'pending',
+   574→  retry_count     INT DEFAULT 0,
+   575→  max_retries     INT DEFAULT 3,
+   576→  error_message   TEXT,
+   577→
+   578→  -- Result
+   579→  photo_id        UUID REFERENCES photos(id),  -- set when upload completes
+   580→
+   581→  -- Timing
+   582→  queued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   583→  started_at      TIMESTAMPTZ,
+   584→  completed_at    TIMESTAMPTZ
+   585→);
+   586→
+   587→CREATE INDEX idx_uploadq_user ON upload_queue (user_id) WHERE user_id IS NOT NULL;
+   588→CREATE INDEX idx_uploadq_event ON upload_queue (event_id);
+   589→CREATE INDEX idx_uploadq_status ON upload_queue (status);
+   590→CREATE INDEX idx_uploadq_pending ON upload_queue (status, queued_at)
+   591→  WHERE status IN ('pending', 'failed');
+   592→
+   593→-- ============================================================
+   594→-- 10. SUBSCRIPTIONS & PAYMENTS
+   595→-- ============================================================
+   596→
+   597→CREATE TABLE subscriptions (
+   598→  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   599→  user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   600→  org_id                  UUID REFERENCES organizations(id) ON DELETE SET NULL,
+   601→  plan                    subscription_plan NOT NULL,
+   602→  status                  subscription_status NOT NULL DEFAULT 'active',
+   603→
+   604→  -- Billing
+   605→  current_period_start    DATE NOT NULL,
+   606→  current_period_end      DATE NOT NULL,
+   607→  trial_end               DATE,
+   608→  cancel_at               DATE,
+   609→
+   610→  -- Provider
+   611→  payment_provider        payment_provider,
+   612→  provider_subscription_id TEXT UNIQUE,
+   613→
+   614→  -- Limits
+   615→  event_limit             INT DEFAULT 1,
+   616→  photos_per_event        INT DEFAULT 50,
+   617→  storage_limit_mb        INT DEFAULT 500,
+   618→  features                JSONB DEFAULT '{}',  -- {live_wall: true, video: false, ...}
+   619→
+   620→  metadata                JSONB DEFAULT '{}',
+   621→  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   622→  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   623→);
+   624→
+   625→CREATE INDEX idx_subs_user ON subscriptions (user_id);
+   626→CREATE INDEX idx_subs_org ON subscriptions (org_id) WHERE org_id IS NOT NULL;
+   627→CREATE INDEX idx_subs_status ON subscriptions (status);
+   628→CREATE INDEX idx_subs_end ON subscriptions (current_period_end);
+   629→
+   630→-- Per-event purchases (alternative to subscription)
+   631→CREATE TABLE event_purchases (
+   632→  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   633→  event_id              UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   634→  buyer_id              UUID NOT NULL REFERENCES users(id),
+   635→
+   636→  -- Product
+   637→  plan                  subscription_plan NOT NULL,
+   638→  description           TEXT,
+   639→
+   640→  -- Money
+   641→  amount                DECIMAL(10,2) NOT NULL,
+   642→  currency              CHAR(3) NOT NULL DEFAULT 'USD',
+   643→  tax_amount            DECIMAL(10,2) DEFAULT 0,
+   644→  total_amount          DECIMAL(10,2) GENERATED ALWAYS AS (amount + tax_amount) STORED,
+   645→
+   646→  -- Provider
+   647→  payment_provider      payment_provider NOT NULL,
+   648→  provider_payment_id   TEXT,
+   649→  provider_checkout_url TEXT,
+   650→
+   651→  -- Status
+   652→  status                payment_status NOT NULL DEFAULT 'pending',
+   653→  paid_at               TIMESTAMPTZ,
+   654→  refunded_at           TIMESTAMPTZ,
+   655→  refund_reason         TEXT,
+   656→
+   657→  -- Receipt
+   658→  receipt_url           TEXT,
+   659→  invoice_number        TEXT,
+   660→
+   661→  metadata              JSONB DEFAULT '{}',
+   662→  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   663→  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   664→);
+   665→
+   666→CREATE INDEX idx_purchases_event ON event_purchases (event_id);
+   667→CREATE INDEX idx_purchases_buyer ON event_purchases (buyer_id);
+   668→CREATE INDEX idx_purchases_status ON event_purchases (status);
+   669→
+   670→-- Saved payment methods
+   671→CREATE TABLE payment_methods (
+   672→  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   673→  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   674→  type              payment_provider NOT NULL,
+   675→  provider_token    TEXT NOT NULL,
+   676→  last4             CHAR(4),
+   677→  expiry_month      INT,
+   678→  expiry_year       INT,
+   679→  billing_name      TEXT,
+   680→  is_default        BOOLEAN DEFAULT FALSE,
+   681→  metadata          JSONB DEFAULT '{}',
+   682→  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   683→);
+   684→
+   685→CREATE INDEX idx_paymethods_user ON payment_methods (user_id);
+   686→
+   687→-- ============================================================
+   688→-- 11. ANALYTICS (Aggregated)
+   689→-- ============================================================
+   690→
+   691→-- Daily event analytics
+   692→CREATE TABLE event_analytics_daily (
+   693→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   694→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   695→  date            DATE NOT NULL,
+   696→
+   697→  -- Traffic
+   698→  page_views      INT DEFAULT 0,
+   699→  unique_visitors INT DEFAULT 0,
+   700→
+   701→  -- Engagement
+   702→  photo_uploads   INT DEFAULT 0,
+   703→  photo_downloads INT DEFAULT 0,
+   704→  photo_shares    INT DEFAULT 0,
+   705→  photo_likes     INT DEFAULT 0,
+   706→  face_scans      INT DEFAULT 0,
+   707→  qr_scans        INT DEFAULT 0,
+   708→
+   709→  -- Content
+   710→  new_photos      INT DEFAULT 0,
+   711→  new_guests      INT DEFAULT 0,
+   712→  guestbook_entries INT DEFAULT 0,
+   713→  live_wall_viewers INT DEFAULT 0,
+   714→
+   715→  -- Revenue
+   716→  revenue         DECIMAL(10,2) DEFAULT 0,
+   717→
+   718→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   719→  UNIQUE (event_id, date)
+   720→);
+   721→
+   722→CREATE INDEX idx_analytics_event_date ON event_analytics_daily (event_id, date DESC);
+   723→
+   724→-- Individual photo daily analytics
+   725→CREATE TABLE photo_analytics_daily (
+   726→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   727→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   728→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   729→  date            DATE NOT NULL,
+   730→  views           INT DEFAULT 0,
+   731→  downloads       INT DEFAULT 0,
+   732→  shares          INT DEFAULT 0,
+   733→  likes           INT DEFAULT 0,
+   734→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   735→  UNIQUE (photo_id, date)
+   736→);
+   737→
+   738→CREATE INDEX idx_panalytics_photo ON photo_analytics_daily (photo_id, date DESC);
+   739→
+   740→-- ============================================================
+   741→-- 12. NOTIFICATIONS
+   742→-- ============================================================
+   743→
+   744→CREATE TABLE notifications (
+   745→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   746→  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   747→  event_id        UUID REFERENCES events(id) ON DELETE CASCADE,
+   748→
+   749→  type            notification_type NOT NULL,
+   750→  title           TEXT NOT NULL,
+   751→  message         TEXT NOT NULL,
+   752→  data            JSONB DEFAULT '{}',      -- {photo_id, guest_name, ...}
+   753→
+   754→  -- Delivery channels
+   755→  delivered_in_app  BOOLEAN DEFAULT FALSE,
+   756→  delivered_push    BOOLEAN DEFAULT FALSE,
+   757→  delivered_email   BOOLEAN DEFAULT FALSE,
+   758→  delivered_whatsapp BOOLEAN DEFAULT FALSE,
+   759→
+   760→  -- Read status
+   761→  read_at         TIMESTAMPTZ,
+   762→
+   763→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   764→);
+   765→
+   766→CREATE INDEX idx_notifs_user ON notifications (user_id, created_at DESC);
+   767→CREATE INDEX idx_notifs_unread ON notifications (user_id, read_at)
+   768→  WHERE read_at IS NULL;
+   769→CREATE INDEX idx_notifs_event ON notifications (event_id) WHERE event_id IS NOT NULL;
+   770→
+   771→-- ============================================================
+   772→-- 13. ACTIVITY LOG (Audit Trail)
+   773→-- ============================================================
+   774→
+   775→CREATE TABLE activity_log (
+   776→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   777→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   778→  event_id        UUID REFERENCES events(id) ON DELETE SET NULL,
+   779→
+   780→  action          TEXT NOT NULL,            -- 'photo.uploaded', 'event.created', etc.
+   781→  entity_type     TEXT NOT NULL,            -- 'photo', 'event', 'user'
+   782→  entity_id       UUID,
+   783→
+   784→  metadata        JSONB DEFAULT '{}',
+   785→  ip_address      INET,
+   786→  user_agent      TEXT,
+   787→  country_code    CHAR(2),
+   788→
+   789→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   790→);
+   791→
+   792→CREATE INDEX idx_activity_user ON activity_log (user_id, created_at DESC) WHERE user_id IS NOT NULL;
+   793→CREATE INDEX idx_activity_event ON activity_log (event_id, created_at DESC) WHERE event_id IS NOT NULL;
+   794→CREATE INDEX idx_activity_entity ON activity_log (entity_type, entity_id);
+   795→CREATE INDEX idx_activity_time ON activity_log (created_at DESC);
+   796→
+   797→-- ============================================================
+   798→-- 14. PHOTO LIKES (for guest engagement)
+   799→-- ============================================================
+   800→
+   801→CREATE TABLE photo_likes (
+   802→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   803→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   804→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   805→  session_fingerprint TEXT,
+   806→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   807→  UNIQUE (photo_id, coalesce(user_id, session_fingerprint))
+   808→);
+   809→
+   810→CREATE INDEX idx_likes_photo ON photo_likes (photo_id);
+   811→
+   812→-- ============================================================
+   813→-- 15. GUESTBOOK REACTIONS
+   814→-- ============================================================
+   815→
+   816→CREATE TABLE guestbook_reactions (
+   817→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   818→  entry_id        UUID NOT NULL REFERENCES guestbook_entries(id) ON DELETE CASCADE,
+   819→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   820→  session_fingerprint TEXT,
+   821→  reaction_type   TEXT NOT NULL DEFAULT 'like',  -- 'like', 'heart', 'emoji'
+   822→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   823→  UNIQUE (entry_id, coalesce(user_id, session_fingerprint))
+   824→);
+   825→
+   826→-- ============================================================
+   827→-- 16. PHOTO COMMENTS (optional per-photo discussion)
+   828→-- ============================================================
+   829→
+   830→CREATE TABLE photo_comments (
+   831→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   832→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   833→  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+   834→  guest_name      TEXT,
+   835→  message         TEXT NOT NULL,
+   836→  parent_id       UUID REFERENCES photo_comments(id) ON DELETE CASCADE,  -- replies
+   837→  is_hidden       BOOLEAN DEFAULT FALSE,
+   838→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   839→);
+   840→
+   841→CREATE INDEX idx_comments_photo ON photo_comments (photo_id, created_at);
+   842→
+   843→-- ============================================================
+   844→-- 17. WEBHOOK ENDPOINTS (for pro integrations)
+   845→-- ============================================================
+   846→
+   847→CREATE TABLE webhook_endpoints (
+   848→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   849→  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   850→  event_id        UUID REFERENCES events(id) ON DELETE CASCADE,
+   851→  url             TEXT NOT NULL,
+   852→  secret          TEXT NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+   853→  events          TEXT[] NOT NULL DEFAULT '{}',  -- which events trigger this webhook
+   854→  is_active       BOOLEAN DEFAULT TRUE,
+   855→  last_triggered  TIMESTAMPTZ,
+   856→  failure_count   INT DEFAULT 0,
+   857→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   858→  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   859→);
+   860→
+   861→CREATE INDEX idx_webhooks_user ON webhook_endpoints (user_id);
+   862→
+   863→-- ============================================================
+   864→-- 18. STORAGE & CACHING TABLES
+   865→-- ============================================================
+   866→
+   867→-- Event timeline (reconstructed from photo EXIF for storytelling)
+   868→CREATE TABLE event_timeline (
+   869→  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   870→  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+   871→  photo_id        UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+   872→  moment_label    TEXT,                      -- AI-generated: "Cerimónia", "Primeira Dança"
+   873→  moment_order    INT NOT NULL,
+   874→  start_time      TIMESTAMPTZ,
+   875→  end_time        TIMESTAMPTZ,
+   876→  cover_photo_id  UUID REFERENCES photos(id),
+   877→  description     TEXT,
+   878→  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   879→);
+   880→
+   881→CREATE INDEX idx_timeline_event ON event_timeline (event_id, moment_order);
+   882→
+   883→-- ============================================================
+   884→-- ROW LEVEL SECURITY (RLS) — Supabase Security
+   885→-- ============================================================
+   886→
+   887→ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+   888→ALTER TABLE photos ENABLE ROW LEVEL SECURITY;
+   889→ALTER TABLE face_clusters ENABLE ROW LEVEL SECURITY;
+   890→ALTER TABLE face_detections ENABLE ROW LEVEL SECURITY;
+   891→ALTER TABLE guestbook_entries ENABLE ROW LEVEL SECURITY;
+   892→ALTER TABLE photo_comments ENABLE ROW LEVEL SECURITY;
+   893→ALTER TABLE photo_likes ENABLE ROW LEVEL SECURITY;
+   894→ALTER TABLE event_analytics_daily ENABLE ROW LEVEL SECURITY;
+   895→ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+   896→ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+   897→
+   898→-- Public events: anyone can read
+   899→CREATE POLICY "Public events are readable by everyone"
+   900→  ON events FOR SELECT
+   901→  USING (privacy_mode = 'public' AND status IN ('active', 'ended'));
+   902→
+   903→-- Event photos: readable based on event privacy
+   904→CREATE POLICY "Photos of public events are readable"
+   905→  ON photos FOR SELECT
+   906→  USING (event_id IN (
+   907→    SELECT id FROM events WHERE privacy_mode = 'public' AND status IN ('active', 'ended')
+   908→  ));
+   909→
+   910→-- Users can read their own data
+   911→CREATE POLICY "Users can read own profile"
+   912→  ON users FOR SELECT
+   913→  USING (auth.uid() = id);
+   914→
+   915→CREATE POLICY "Users can update own profile"
+   916→  ON users FOR UPDATE
+   917→  USING (auth.uid() = id);
+   918→
+   919→-- Organizers can manage their events
+   920→CREATE POLICY "Organizers can update their events"
+   921→  ON events FOR UPDATE
+   922→  USING (auth.uid() = creator_id OR auth.uid() IN (
+   923→    SELECT user_id FROM event_collaborators WHERE event_id = events.id AND can_edit = TRUE
+   924→  ));
+   925→
+   926→-- ============================================================
+   927→-- TRIGGERS
+   928→-- ============================================================
+   929→
+   930→-- Auto-update updated_at timestamp
+   931→CREATE OR REPLACE FUNCTION update_updated_at()
+   932→RETURNS TRIGGER AS $$
+   933→BEGIN
+   934→  NEW.updated_at = NOW();
+   935→  RETURN NEW;
+   936→END;
+   937→$$ LANGUAGE plpgsql;
+   938→
+   939→CREATE TRIGGER tr_users_updated BEFORE UPDATE ON users
+   940→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   941→
+   942→CREATE TRIGGER tr_events_updated BEFORE UPDATE ON events
+   943→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   944→
+   945→CREATE TRIGGER tr_photos_updated BEFORE UPDATE ON photos
+   946→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   947→
+   948→CREATE TRIGGER tr_clusters_updated BEFORE UPDATE ON face_clusters
+   949→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   950→
+   951→CREATE TRIGGER tr_subscriptions_updated BEFORE UPDATE ON subscriptions
+   952→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   953→
+   954→CREATE TRIGGER tr_event_purchases_updated BEFORE UPDATE ON event_purchases
+   955→  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+   956→
+   957→-- Maintain photo_count on events
+   958→CREATE OR REPLACE FUNCTION update_event_photo_count()
+   959→RETURNS TRIGGER AS $$
+   960→BEGIN
+   961→  IF TG_OP = 'INSERT' THEN
+   962→    UPDATE events SET photo_count = photo_count + 1 WHERE id = NEW.event_id;
+   963→  ELSIF TG_OP = 'DELETE' THEN
+   964→    UPDATE events SET photo_count = photo_count - 1 WHERE id = OLD.event_id;
+   965→  END IF;
+   966→  RETURN COALESCE(NEW, OLD);
+   967→END;
+   968→$$ LANGUAGE plpgsql;
+   969→
+   970→CREATE TRIGGER tr_photo_count AFTER INSERT OR DELETE ON photos
+   971→  FOR EACH ROW EXECUTE FUNCTION update_event_photo_count();
+   972→
+   973→-- Maintain face_count on photos
+   974→CREATE OR REPLACE FUNCTION update_photo_face_count()
+   975→RETURNS TRIGGER AS $$
+   976→BEGIN
+   977→  IF TG_OP = 'INSERT' THEN
+   978→    UPDATE photos SET face_count = face_count + 1 WHERE id = NEW.photo_id;
+   979→  ELSIF TG_OP = 'DELETE' THEN
+   980→    UPDATE photos SET face_count = face_count - 1 WHERE id = OLD.photo_id;
+   981→  END IF;
+   982→  RETURN COALESCE(NEW, OLD);
+   983→END;
+   984→$$ LANGUAGE plpgsql;
+   985→
+   986→CREATE TRIGGER tr_face_count AFTER INSERT OR DELETE ON face_detections
+   987→  FOR EACH ROW EXECUTE FUNCTION update_photo_face_count();
+   988→
+   989→-- ============================================================
+   990→-- VIEWS (Analytics & Reporting)
+   991→-- ============================================================
+   992→
+   993→-- Event summary view (for dashboards)
+   994→CREATE OR REPLACE VIEW v_event_summary AS
+   995→SELECT
+   996→  e.id AS event_id,
+   997→  e.name,
+   998→  e.slug,
+   999→  e.event_type,
+  1000→  e.status,
+  1001→  e.privacy_mode,
+  1002→  e.starts_at,
+  1003→  e.ends_at,
+  1004→  e.photo_count,
+  1005→  e.guest_count,
+  1006→  e.view_count,
+  1007→  e.download_count,
+  1008→  e.share_count,
+  1009→  e.created_at,
+  1010→  u.full_name AS creator_name,
+  1011→  u.email AS creator_email,
+  1012→  o.name AS org_name,
+  1013→  o.plan AS org_plan,
+  1014→  -- Aggregate analytics
+  1015→  COALESCE(SUM(a.page_views), 0) AS total_page_views,
+  1016→  COALESCE(SUM(a.unique_visitors), 0) AS total_unique_visitors,
+  1017→  COALESCE(SUM(a.photo_uploads), 0) AS total_uploads,
+  1018→  COALESCE(SUM(a.photo_downloads), 0) AS total_downloads,
+  1019→  COALESCE(SUM(a.face_scans), 0) AS total_face_scans,
+  1020→  COALESCE(SUM(a.qr_scans), 0) AS total_qr_scans,
+  1021→  COALESCE(SUM(a.revenue), 0) AS total_revenue,
+  1022→  -- Face recognition stats
+  1023→  COALESCE(fc.cluster_count, 0) AS unique_faces_detected,
+  1024→  COALESCE(gb.entry_count, 0) AS guestbook_entries,
+  1025→  -- Collaborator count
+  1026→  COALESCE(ec.collab_count, 0) AS collaborator_count
+  1027→FROM events e
+  1028→LEFT JOIN users u ON e.creator_id = u.id
+  1029→LEFT JOIN organizations o ON e.org_id = o.id
+  1030→LEFT JOIN event_analytics_daily a ON a.event_id = e.id
+  1031→LEFT JOIN (SELECT event_id, COUNT(*) AS cluster_count FROM face_clusters GROUP BY event_id) fc ON fc.event_id = e.id
+  1032→LEFT JOIN (SELECT event_id, COUNT(*) AS entry_count FROM guestbook_entries WHERE is_hidden = FALSE GROUP BY event_id) gb ON gb.event_id = e.id
+  1033→LEFT JOIN (SELECT event_id, COUNT(*) AS collab_count FROM event_collaborators GROUP BY event_id) ec ON ec.event_id = e.id
+  1034→GROUP BY e.id, e.name, e.slug, e.event_type, e.status, e.privacy_mode, e.starts_at, e.ends_at,
+  1035→  e.photo_count, e.guest_count, e.view_count, e.download_count, e.share_count, e.created_at,
+  1036→  u.full_name, u.email, o.name, o.plan, fc.cluster_count, gb.entry_count, ec.collab_count;
+  1037→
+  1038→-- Top photos per event (by engagement)
+  1039→CREATE OR REPLACE VIEW v_top_photos AS
+  1040→SELECT
+  1041→  p.id,
+  1042→  p.event_id,
+  1043→  p.original_url,
+  1044→  p.thumbnail_urls,
+  1045→  p.caption,
+  1046→  p.uploaded_at,
+  1047→  p.view_count,
+  1048→  p.download_count,
+  1049→  p.share_count,
+  1050→  p.like_count,
+  1051→  p.quality_score,
+  1052→  p.is_featured,
+  1053→  (p.view_count * 1 + p.download_count * 5 + p.share_count * 3 + p.like_count * 2) AS engagement_score
+  1054→FROM photos p
+  1055→WHERE p.is_flagged = FALSE AND p.published_at IS NOT NULL
+  1056→ORDER BY engagement_score DESC;
+  1057→
+  1058→-- Face cluster summary with representative photos
+  1059→CREATE OR REPLACE VIEW v_face_clusters_summary AS
+  1060→SELECT
+  1061→  fc.id AS cluster_id,
+  1062→  fc.event_id,
+  1063→  fc.label,
+  1064→  fc.photo_count,
+  1065→  fc.confidence_score,
+  1066→  fc.created_at,
+  1067→  p.thumbnail_urls->>'sm' AS representative_thumbnail,
+  1068→  p.original_url AS representative_photo_url,
+  1069→  u.full_name AS claimed_by_name
+  1070→FROM face_clusters fc
+  1071→LEFT JOIN photos p ON fc.representative_photo_id = p.id
+  1072→LEFT JOIN users u ON fc.guest_claimed_by = u.id
+  1073→ORDER BY fc.photo_count DESC;
+  1074→
+  1075→-- Guest engagement leaderboard per event
+  1076→CREATE OR REPLACE VIEW v_guest_leaderboard AS
+  1077→SELECT
+  1078→  p.uploader_id AS user_id,
+  1079→  COALESCE(p.uploader_guest_name, u.full_name) AS name,
+  1080→  p.event_id,
+  1081→  COUNT(DISTINCT p.id) AS photos_uploaded,
+  1082→  COALESCE(SUM(p.like_count), 0) AS total_likes_received,
+  1083→  COALESCE(SUM(p.share_count), 0) AS total_shares,
+  1084→  COALESCE(SUM(p.view_count), 0) AS total_views
+  1085→FROM photos p
+  1086→LEFT JOIN users u ON p.uploader_id = u.id
+  1087→WHERE p.uploader_source = 'guest'
+  1088→GROUP BY p.event_id, p.uploader_id, p.uploader_guest_name, u.full_name
+  1089→ORDER BY photos_uploaded DESC;
+  1090→
+  1091→-- ============================================================
+  1092→-- HELPER FUNCTIONS
+  1093→-- ============================================================
+  1094→
+  1095→-- Generate unique event slug
+  1096→CREATE OR REPLACE FUNCTION generate_event_slug(base_slug TEXT)
+  1097→RETURNS TEXT AS $$
+  1098→DECLARE
+  1099→  final_slug TEXT := base_slug;
+  1100→  counter INT := 0;
+  1101→BEGIN
+  1102→  -- Normalize slug
+  1103→  final_slug := lower(regexp_replace(final_slug, '[^a-z0-9]+', '-', 'g'));
+  1104→  final_slug := regexp_replace(final_slug, '^-|-$', '', 'g');
+  1105→
+  1106→  -- Check uniqueness and append counter if needed
+  1107→  WHILE EXISTS (SELECT 1 FROM events WHERE slug = final_slug) LOOP
+  1108→    counter := counter + 1;
+  1109→    final_slug := base_slug || '-' || counter;
+  1110→  END LOOP;
+  1111→
+  1112→  RETURN final_slug;
+  1113→END;
+  1114→$$ LANGUAGE plpgsql;
+  1115→
+  1116→-- Find similar faces using cosine similarity
+  1117→CREATE OR REPLACE FUNCTION find_similar_faces(
+  1118→  query_embedding vector(128),
+  1119→  event_id_param UUID,
+  1120→  threshold DECIMAL DEFAULT 0.6
+  1121→)
+  1122→RETURNS TABLE (
+  1123→  detection_id UUID,
+  1124→  photo_id UUID,
+  1125→  cluster_id UUID,
+  1126→  confidence DECIMAL,
+  1127→  thumbnail_url TEXT
+  1128→) AS $$
+  1129→BEGIN
+  1130→  RETURN QUERY
+  1131→  SELECT
+  1132→    fd.id AS detection_id,
+  1133→    fd.photo_id,
+  1134→    fd.cluster_id,
+  1135→    (1 - (fd.embedding <=> query_embedding))::DECIMAL(3,2) AS confidence,
+  1136→    p.thumbnail_urls->>'sm' AS thumbnail_url
+  1137→  FROM face_detections fd
+  1138→  JOIN photos p ON fd.photo_id = p.id
+  1139→  WHERE p.event_id = event_id_param
+  1140→    AND p.is_flagged = FALSE
+  1141→    AND (1 - (fd.embedding <=> query_embedding)) >= threshold
+  1142→  ORDER BY fd.embedding <=> query_embedding
+  1143→  LIMIT 100;
+  1144→END;
+  1145→$$ LANGUAGE plpgsql;
+  1146→
+  1147→-- Get event stats for dashboard
+  1148→CREATE OR REPLACE FUNCTION get_event_stats(event_id_param UUID)
+  1149→RETURNS JSONB AS $$
+  1150→DECLARE
+  1151→  result JSONB;
+  1152→BEGIN
+  1153→  SELECT jsonb_build_object(
+  1154→    'photo_count', COALESCE((SELECT COUNT(*) FROM photos WHERE event_id = event_id_param), 0),
+  1155→    'guest_count', COALESCE((SELECT COUNT(DISTINCT uploader_id) FROM photos WHERE event_id = event_id_param AND uploader_id IS NOT NULL), 0),
+  1156→    'unique_faces', COALESCE((SELECT COUNT(*) FROM face_clusters WHERE event_id = event_id_param), 0),
+  1157→    'total_views', COALESCE((SELECT SUM(view_count) FROM photos WHERE event_id = event_id_param), 0),
+  1158→    'total_downloads', COALESCE((SELECT SUM(download_count) FROM photos WHERE event_id = event_id_param), 0),
+  1159→    'total_shares', COALESCE((SELECT SUM(share_count) FROM photos WHERE event_id = event_id_param), 0),
+  1160→    'guestbook_entries', COALESCE((SELECT COUNT(*) FROM guestbook_entries WHERE event_id = event_id_param AND is_hidden = FALSE), 0),
+  1161→    'qr_scans', COALESCE((SELECT SUM(scan_count) FROM qr_codes WHERE event_id = event_id_param), 0),
+  1162→    'face_scans_count', COALESCE((SELECT COUNT(*) FROM face_scans WHERE event_id = event_id_param), 0)
+  1163→  ) INTO result;
+  1164→
+  1165→  RETURN result;
+  1166→END;
+  1167→$$ LANGUAGE plpgsql;
+  1168→
