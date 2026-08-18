@@ -279,6 +279,10 @@ export function PhotoLightbox({ photos, currentIndex, onClose, onNavigate }: Pho
 
           {/* Comment */}
           <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("memoir:open-guestbook"));
+              onClose();
+            }}
             className="grid size-10 place-items-center rounded-full text-background/70 hover:text-background hover:bg-background/10 transition-all duration-200"
             aria-label="Comentário"
           >

@@ -48,6 +48,7 @@ function DashboardPage() {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const eventsQuery = useQuery({ queryKey: ["my-events"], queryFn: listMyEvents });
 
@@ -61,7 +62,10 @@ function DashboardPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteEvent(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-events"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-events"] });
+      setConfirmDeleteId(null);
+    },
   });
 
   async function handleSignOut() {
@@ -110,8 +114,20 @@ function DashboardPage() {
     setTimeout(() => setCopied(null), 1800);
   }
 
+  function handleDeleteClick(id: string) {
+    setConfirmDeleteId(id);
+  }
+
+  function handleDeleteConfirm(id: string) {
+    deleteMutation.mutate(id);
+  }
+
+  function handleDeleteCancel() {
+    setConfirmDeleteId(null);
+  }
+
   return (
-    <div className="min-h-screen bg-background px-6 py-10">
+    <div className="min-h-screen bg-background px-6 py-10 animate-fade-in">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between">
           <div>
@@ -140,7 +156,14 @@ function DashboardPage() {
           </button>
         </div>
 
-        {showForm && (
+        {/* Smooth height transition wrapper for the create form */}
+        <div
+          className="overflow-hidden transition-[max-height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            maxHeight: showForm ? "800px" : "0px",
+            opacity: showForm ? 1 : 0,
+          }}
+        >
           <form
             onSubmit={handleCreate}
             className="glass-card mt-6 grid gap-3 rounded-xl p-5 sm:grid-cols-2"
@@ -214,15 +237,19 @@ function DashboardPage() {
               Criar galeria
             </button>
           </form>
-        )}
+        </div>
 
         <div className="mt-8 space-y-4">
           {eventsQuery.isLoading && <p className="text-sm text-muted-foreground">A carregar…</p>}
           {eventsQuery.data?.length === 0 && !showForm && (
             <p className="text-sm text-muted-foreground">Ainda não tem eventos. Crie o primeiro.</p>
           )}
-          {eventsQuery.data?.map((ev) => (
-            <div key={ev.id} className="glass-card rounded-xl p-5">
+          {eventsQuery.data?.map((ev, i) => (
+            <div
+              key={ev.id}
+              className="glass-card rounded-xl p-5 animate-slide-up"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-display text-xl text-foreground">{ev.name}</h2>
@@ -262,13 +289,35 @@ function DashboardPage() {
                   >
                     <Copy className="size-3.5" /> {copied === ev.slug ? "Copiado" : "Link"}
                   </button>
-                  <button
-                    onClick={() => deleteMutation.mutate(ev.id)}
-                    className="grid size-9 place-items-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-destructive"
-                    aria-label="Eliminar evento"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                  {confirmDeleteId === ev.id ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-xs text-destructive font-medium">Tem certeza?</span>
+                      <button
+                        onClick={() => handleDeleteConfirm(ev.id)}
+                        disabled={deleteMutation.isPending}
+                        className="inline-flex items-center gap-1.5 rounded-sm bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground transition-colors hover:opacity-90 disabled:opacity-50"
+                      >
+                        {deleteMutation.isPending ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : null}
+                        Sim, apagar
+                      </button>
+                      <button
+                        onClick={handleDeleteCancel}
+                        className="inline-flex items-center rounded-sm border border-border px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/60"
+                      >
+                        Cancelar
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleDeleteClick(ev.id)}
+                      className="grid size-9 place-items-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-destructive"
+                      aria-label="Eliminar evento"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 

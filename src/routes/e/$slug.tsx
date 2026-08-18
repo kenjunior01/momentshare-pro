@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   Camera,
@@ -57,6 +57,13 @@ function EventGalleryPage() {
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [confettiActive, setConfettiActive] = useState(false);
   const [confettiPos, setConfettiPos] = useState({ x: 0, y: 0 });
+  const [revealedPhotos, setRevealedPhotos] = useState<Set<string>>(new Set());
+  const prevPhotoIdsRef = useRef<Set<string>>(new Set());
+  const guestbookSectionRef = useRef<HTMLDivElement>(null);
+  const revealedTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const prevPhotoCountRef = useRef(0);
+  const heroParallaxRef = useRef<HTMLDivElement>(null);
+  const [milestoneText, setMilestoneText] = useState<string | null>(null);
 
   // ── Guest session (anonymous, fingerprint-based, zero login) ──
   const {
@@ -121,12 +128,95 @@ function EventGalleryPage() {
     },
   });
 
-  // Scroll-aware header
+  // ── Track newly appeared photos for reveal animation ──
   useEffect(() => {
-    const handleScroll = () => setHeaderScrolled(window.scrollY > 60);
+    const currentIds = new Set(photos.map((p) => p.id));
+    const prevIds = prevPhotoIdsRef.current;
+    if (prevIds.size > 0) {
+      // Photos that exist now but didn't before are "new"
+      const newIds: string[] = [];
+      for (const id of currentIds) {
+        if (!prevIds.has(id)) newIds.push(id);
+      }
+      if (newIds.length > 0) {
+        setRevealedPhotos((prev) => {
+          const next = new Set(prev);
+          for (const id of newIds) next.add(id);
+          return next;
+        });
+        // Remove each after 3 seconds
+        for (const id of newIds) {
+          if (revealedTimersRef.current.has(id)) clearTimeout(revealedTimersRef.current.get(id));
+          revealedTimersRef.current.set(
+            id,
+            setTimeout(() => {
+              setRevealedPhotos((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+              }, 3000),
+          );
+        }
+      }
+    }
+    prevPhotoIdsRef.current = currentIds;
+    return () => {
+      // Cleanup timers on unmount
+      for (const t of revealedTimersRef.current.values()) clearTimeout(t);
+      revealedTimersRef.current.clear();
+    };
+  }, [photos]);
+
+  // ── Listen for open-guestbook custom event (from lightbox comment button) ──
+  useEffect(() => {
+    function handleOpenGuestbook() {
+      setShowGuestbook(true);
+      setActiveTab("all");
+      // Scroll to the guestbook section
+      setTimeout(() => {
+        guestbookSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+    window.addEventListener("memoir:open-guestbook", handleOpenGuestbook);
+    return () => window.removeEventListener("memoir:open-guestbook", handleOpenGuestbook);
+  }, []);
+
+  // Scroll-aware header + parallax hero
+  useEffect(() => {
+    const handleScroll = () => {
+      setHeaderScrolled(window.scrollY > 60);
+      // Parallax: move hero image wrapper at 0.3x scroll rate
+      if (heroParallaxRef.current) {
+        heroParallaxRef.current.style.transform = `translateY(${window.scrollY * 0.3}px)`;
+      }
+    };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // ── Photo count milestone celebration (every 25 photos) ──
+  useEffect(() => {
+    const count = photos.length;
+    const prev = prevPhotoCountRef.current;
+    prevPhotoCountRef.current = count;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (prev > 0 && count > prev) {
+      // Check if we crossed a milestone boundary
+      const prevMilestone = Math.floor(prev / 25);
+      const currMilestone = Math.floor(count / 25);
+      if (currMilestone > prevMilestone) {
+        const milestone = currMilestone * 25;
+        setMilestoneText(`📸 ${milestone} momentos capturados!`);
+        timer = setTimeout(() => setMilestoneText(null), 2500);
+      }
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [photos.length]);
 
   // Filter photos for "my photos" tab
   const filteredPhotos = useMemo(() => {
@@ -140,13 +230,19 @@ function EventGalleryPage() {
     setAccessCode(code);
   }
 
-  // ── Loading ──
+  // ── Loading skeleton ──
   if (eventLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center animate-pulse">
-          <div className="mx-auto size-10 rounded-full bg-muted" />
-          <p className="mt-4 text-sm text-muted-foreground">A carregar galeria...</p>
+      <div className="min-h-screen bg-background">
+        {/* Cover skeleton */}
+        <div className="skeleton w-full aspect-video max-h-[65vh]" />
+        {/* Content skeleton */}
+        <div className="mx-auto max-w-5xl px-4 pt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skeleton rounded-xl aspect-[3/4]" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -190,11 +286,17 @@ function EventGalleryPage() {
       {/* ═══════════ HERO COVER ═══════════ */}
       <header className="relative">
         <div className="relative h-[65vh] min-h-[420px] overflow-hidden">
-          <img
-            src={event.cover_url}
-            alt={event.name}
-            className="absolute inset-0 w-full h-full object-cover scale-105"
-          />
+          <div
+            ref={heroParallaxRef}
+            className="absolute inset-0 will-change-transform ken-burns"
+            style={{ transform: "translateY(0px)" }}
+          >
+            <img
+              src={event.cover_url}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </div>
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-background/20" />
           <div className="film-grain absolute inset-0 pointer-events-none" />
 
@@ -231,6 +333,14 @@ function EventGalleryPage() {
               <h1 className="mt-2 font-display text-3xl sm:text-5xl lg:text-6xl text-foreground leading-[1.1] text-balance">
                 {event.name}
               </h1>
+              {/* Personalized welcome */}
+              {guest && guest.name && guest.name !== "Convidado" && (
+                <p
+                  className="mt-2 text-sm sm:text-base font-display italic text-secondary-foreground animate-fade-in"
+                >
+                  Bem-vindo(a), {guest.name}! 🎉
+                </p>
+              )}
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-foreground/50">
                 {event.location_name && (
                   <span className="flex items-center gap-1.5">
@@ -329,8 +439,21 @@ function EventGalleryPage() {
       </div>
 
       {/* ═══════════ MAIN CONTENT ═══════════ */}
-      <main className="max-w-5xl mx-auto px-4 pt-6">
+      <main className="max-w-5xl mx-auto px-4 pt-6 relative">
+        {/* Photo count milestone overlay */}
+        {milestoneText && (
+          <div
+            className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full glass px-5 py-2.5 shadow-soft pointer-events-none"
+            style={{ animation: "milestone-in-out 2.5s ease forwards" }}
+            aria-live="polite"
+          >
+            <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+              {milestoneText}
+            </span>
+          </div>
+        )}
         {showGuestbook && event.guestbook_enabled && guest && (
+          <div ref={guestbookSectionRef}>
           <GuestbookSection
             entries={guestbook}
             guestName={guest.name}
@@ -338,8 +461,9 @@ function EventGalleryPage() {
             eventId={event.id}
             fingerprint={fingerprint}
           />
+          </div>
         )}
-        <PhotoGrid photos={filteredPhotos} onPhotoClick={(i) => setLightboxIndex(i)} />
+        <PhotoGrid photos={filteredPhotos} onPhotoClick={(i) => setLightboxIndex(i)} revealedPhotos={revealedPhotos} />
         {filteredPhotos.length > 0 && (
           <div className="mt-16 text-center">
             <div className="inline-flex items-center gap-3 rounded-full glass px-5 py-2.5">

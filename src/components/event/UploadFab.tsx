@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, X, CheckCircle2, ImagePlus, CloudUpload } from "lucide-react";
+import { Camera, X, CheckCircle2, ImagePlus, CloudUpload, Upload, AlertCircle, RotateCcw } from "lucide-react";
 
 interface UploadFabProps {
   guestName: string;
@@ -9,10 +9,12 @@ interface UploadFabProps {
 
 export function UploadFab({ guestName, accentColor, onUpload }: UploadFabProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [status, setStatus] = useState<"idle" | "uploading" | "done">("idle");
+  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -25,7 +27,51 @@ export function UploadFab({ guestName, accentColor, onUpload }: UploadFabProps) 
     const urls = files.map((f) => URL.createObjectURL(f));
     setPreviewUrls(urls);
     setIsOpen(true);
+    setStatus("idle");
   }
+
+  function handleDropFiles(files: FileList | File[]) {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+    if (!imageFiles.length) return;
+    setSelectedFiles(imageFiles);
+    const urls = imageFiles.map((f) => URL.createObjectURL(f));
+    setPreviewUrls(urls);
+    setIsOpen(true);
+    setStatus("idle");
+  }
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current === 1) setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+      if (e.dataTransfer.files.length > 0) {
+        handleDropFiles(e.dataTransfer.files);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const startUpload = useCallback(async () => {
     if (!onUpload) return simulateUpload();
@@ -37,8 +83,7 @@ export function UploadFab({ guestName, accentColor, onUpload }: UploadFabProps) 
       setStatus("done");
       setTimeout(() => resetState(), 2000);
     } catch {
-      setStatus("idle");
-      setProgress(0);
+      setStatus("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onUpload, selectedFiles]);
@@ -96,6 +141,38 @@ export function UploadFab({ guestName, accentColor, onUpload }: UploadFabProps) 
 
   return (
     <>
+      {/* ── Full-screen drag-and-drop overlay ── */}
+      {isDragOver && !isOpen && (
+        <div
+          className="fixed inset-0 z-[70] animate-[scale-in_0.2s_ease-out_both] flex items-center justify-center"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-lg" />
+          <div
+            className={
+              "relative z-10 flex flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed px-12 py-16 sm:px-20 sm:py-20 " +
+              "glass animate-[pulse_2s_ease-in-out_infinite]"
+            }
+            style={{ borderColor: `color-mix(in oklab, ${color} 60%, transparent)` }}
+          >
+            <div
+              className="grid size-16 place-items-center rounded-full"
+              style={{ backgroundColor: `color-mix(in oklab, ${color} 15%, transparent)` }}
+            >
+              <Upload className="size-8" style={{ color }} />
+            </div>
+            <p className="font-display text-xl text-card-foreground">
+              Solte as fotos aqui
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Imagens e vídeos serão adicionados à galeria
+            </p>
+          </div>
+        </div>
+      )}
       {/* Upload panel */}
       {isOpen && (
         <div className="fixed inset-0 z-50 animate-fade-in">
@@ -232,6 +309,27 @@ export function UploadFab({ guestName, accentColor, onUpload }: UploadFabProps) 
                     Fotos adicionadas!
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Obrigado, {guestName}</p>
+                </div>
+              )}
+
+              {status === "error" && (
+                <div className="flex flex-col items-center py-8 animate-rise">
+                  <div className="mb-4">
+                    <AlertCircle className="size-14" style={{ color: "oklch(0.6 0.2 25)" }} />
+                  </div>
+                  <p className="font-display text-base font-semibold text-card-foreground">
+                    Erro ao enviar. Tente novamente.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Verifique a ligação e tente de novo
+                  </p>
+                  <button
+                    onClick={() => void startUpload()}
+                    className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    style={{ backgroundColor: color }}
+                  >
+                    <RotateCcw className="size-3.5" /> Tentar novamente
+                  </button>
                 </div>
               )}
             </div>

@@ -3,11 +3,11 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
@@ -38,7 +38,6 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
-  const router = useRouter();
   useEffect(() => {
     reportError(error, { boundary: "root_error_component" });
   }, [error]);
@@ -55,10 +54,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
+            onClick={reset}
             className="btn-glow inline-flex items-center justify-center rounded-sm bg-foreground px-6 py-3 text-xs font-bold uppercase tracking-widest text-background transition-colors hover:bg-primary"
           >
             Tentar novamente
@@ -125,11 +121,77 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/* ═══════════ ROUTE LOADING PROGRESS BAR ═══════════ */
+
+function RouteProgressBar() {
+  const { isLoading } = useRouterState({ select: (s) => ({ isLoading: s.isLoading }) });
+  const [width, setWidth] = useState(0);
+  const [opacity, setOpacity] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevLoadingRef = useRef(false);
+
+  const startBar = useCallback(() => {
+    // Reset
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setOpacity(1);
+    setWidth(0);
+    // Quickly animate to 80%
+    requestAnimationFrame(() => {
+      setWidth(80);
+    });
+  }, []);
+
+  const finishBar = useCallback(() => {
+    setWidth(100);
+    // After reaching 100%, fade out
+    timeoutRef.current = setTimeout(() => {
+      setOpacity(0);
+      // Reset width after fade
+      timeoutRef.current = setTimeout(() => {
+        setWidth(0);
+      }, 300);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    // Detect transition from not-loading to loading
+    if (isLoading && !prevLoadingRef.current) {
+      startBar();
+    } else if (!isLoading && prevLoadingRef.current) {
+      finishBar();
+    }
+    prevLoadingRef.current = isLoading;
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isLoading, startBar, finishBar]);
+
+  if (opacity === 0 && width === 0) return null;
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-[100] h-0.5 pointer-events-none"
+      style={{ opacity }}
+    >
+      <div
+        className="h-full"
+        style={{
+          width: `${width}%`,
+          backgroundColor: "var(--color-primary)",
+          transition: width === 0 ? "none" : "width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease",
+        }}
+      />
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <RouteProgressBar />
       <Outlet />
     </QueryClientProvider>
   );

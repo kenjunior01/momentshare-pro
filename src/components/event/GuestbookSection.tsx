@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Send, Heart, Clock } from "lucide-react";
 import { addGuestbookEntry } from "@/lib/db";
@@ -24,7 +24,10 @@ export function GuestbookSection({
   const [message, setMessage] = useState("");
   const [localPending, setLocalPending] = useState<GuestBookEntry[]>([]);
   const [reactions, setReactions] = useState<Record<string, Set<string>>>({});
+  const [justSubmitted, setJustSubmitted] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const queryClient = useQueryClient();
 
   // Scroll to top when a new pending message is added
@@ -51,6 +54,23 @@ export function GuestbookSection({
     },
   });
 
+  const triggerCelebration = useCallback(() => {
+    if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+    setJustSubmitted(true);
+    setShowToast(true);
+    submitTimerRef.current = setTimeout(() => {
+      setJustSubmitted(false);
+      setShowToast(false);
+    }, 2000);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+    };
+  }, []);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!message.trim() || submitMutation.isPending) return;
@@ -66,6 +86,9 @@ export function GuestbookSection({
     // Show immediately for the sender (with "em revisão" badge)
     setLocalPending((prev) => [newEntry, ...prev]);
     setMessage("");
+
+    // Trigger celebratory feedback
+    triggerCelebration();
 
     // Persist to Supabase (goes through moderation)
     submitMutation.mutate(message.trim());
@@ -83,7 +106,7 @@ export function GuestbookSection({
   }
 
   return (
-    <section className="mt-16 border-t border-border/40 pt-10">
+    <section className="mt-16 border-t border-border/40 pt-10 animate-fade-in">
       <div className="flex items-center gap-3 mb-8">
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
         <h2 className="font-display text-2xl text-foreground whitespace-nowrap">
@@ -96,7 +119,7 @@ export function GuestbookSection({
         <p className="text-xs text-muted-foreground mb-3">
           Escrevendo como <span className="font-semibold text-foreground">{guestName}</span>
         </p>
-        <div className="glass-card rounded-xl p-1 flex gap-2 items-end">
+        <div className="glass-card rounded-xl p-1 flex gap-2 items-end animate-slide-up">
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -104,19 +127,44 @@ export function GuestbookSection({
             rows={2}
             className="flex-1 bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={!message.trim() || submitMutation.isPending}
-            className="shrink-0 grid size-11 place-items-center rounded-xl transition-all duration-300 disabled:opacity-20 hover:scale-105"
-            style={{ backgroundColor: accentColor ?? "var(--color-foreground)" }}
-            aria-label="Enviar"
-          >
-            <Send
-              className="size-4"
-              style={{ color: accentColor ? "white" : "var(--color-background)" }}
-            />
-          </button>
+          <div className="relative shrink-0">
+            {/* Heart burst celebration */}
+            {justSubmitted && (
+              <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2" aria-hidden="true">
+                <span className="absolute text-red-400 text-xs" style={{ animation: "heart-float-1 0.9s ease-out forwards" }}>♥</span>
+                <span className="absolute text-red-300 text-[10px]" style={{ animation: "heart-float-2 1s ease-out 0.1s forwards", opacity: 0 }}>♥</span>
+                <span className="absolute text-red-500 text-sm" style={{ animation: "heart-float-3 1.1s ease-out 0.15s forwards", opacity: 0 }}>♥</span>
+                <span className="absolute text-pink-400 text-[10px]" style={{ animation: "heart-float-4 0.8s ease-out 0.25s forwards", opacity: 0 }}>♥</span>
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={!message.trim() || submitMutation.isPending}
+              className="grid size-11 place-items-center rounded-xl transition-all duration-300 disabled:opacity-20 hover:scale-105"
+              style={{ backgroundColor: accentColor ?? "var(--color-foreground)" }}
+              aria-label="Enviar"
+            >
+              <Send
+                className="size-4"
+                style={{ color: accentColor ? "white" : "var(--color-background)" }}
+              />
+            </button>
+          </div>
         </div>
+
+        {/* Toast message */}
+        {showToast && (
+          <div
+            className="mt-3 rounded-xl glass-card px-4 py-2.5 text-center"
+            style={{ animation: "toast-in-out 2s ease forwards" }}
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-sm text-foreground">
+              Obrigado! A sua mensagem será revisada.
+            </p>
+          </div>
+        )}
       </form>
 
       <div ref={listRef} className="space-y-4">

@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { EventPhoto } from "@/lib/types";
 import { Heart, Play, Eye, Camera } from "lucide-react";
+import { PhotoReveal, NewPhotoBadge } from "./PhotoReveal";
 
 interface PhotoGridProps {
   photos: EventPhoto[];
   onPhotoClick: (index: number) => void;
+  revealedPhotos?: Set<string> | undefined;
 }
 
 function simulatedViews(id: string): number {
@@ -18,7 +20,7 @@ function fmt(n: number): string {
   return String(n);
 }
 
-export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
+export function PhotoGrid({ photos, onPhotoClick, revealedPhotos }: PhotoGridProps) {
   const [visibleCount, setVisibleCount] = useState(8);
   const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
@@ -94,10 +96,11 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
         const liked = likedPhotos.has(photo.id);
         const bounce = bouncing.has(photo.id);
         const views = simulatedViews(photo.id);
-        return (
+        const isNew = revealedPhotos?.has(photo.id) ?? false;
+        const photoContent = (
           <div
             key={photo.id}
-            className="mb-1.5 sm:mb-2 break-inside-avoid animate-fade-in cursor-pointer group"
+            className="mb-1.5 sm:mb-2 break-inside-avoid cursor-pointer group"
             style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
             onClick={() => onPhotoClick(i)}
           >
@@ -161,6 +164,23 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
                 </div>
               </div>
             </div>
+          </div>
+        );
+
+        if (isNew) {
+          return (
+            <div key={photo.id} className="relative mb-1.5 sm:mb-2 break-inside-avoid">
+              <PhotoReveal reveal={true}>
+                {photoContent}
+              </PhotoReveal>
+              <NewPhotoBadge show={true} />
+            </div>
+          );
+        }
+
+        return (
+          <div key={photo.id} className="animate-fade-in" style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}>
+            {photoContent}
           </div>
         );
       })}
