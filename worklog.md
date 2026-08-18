@@ -1,19 +1,28 @@
-# MomentShare Pro — Work Log
-
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Enable anonymous QR code access (no login required)
+Agent: main
+Task: Realtime, guestbook moderation & admin panel
 
 Work Log:
-- Read and analyzed all 3 existing migrations (001 schema, 002 RLS, 003 analytics)
-- Read full styles.css — confirmed build already passes (no CSS bug)
-- Created `004_guest_sessions.sql` with: guest_sessions table, 4 helper functions (create_guest_session, register_guest_name, get_event_guest_list, increment_guest_activity, expire_old_guest_sessions), updated get_event_stats()
-- Rewrote `002_rls_policies.sql` — 30+ policies, all guest-facing operations work without auth
-- Verified build compiles successfully (vite 8.2.1 + nitro, 489ms)
+- Explored codebase: $slug.tsx, GuestbookSection, types, mock-data, hooks, supabase migrations
+- Installed @supabase/supabase-js@2
+- Created src/lib/supabase.ts (placeholder client for anonymous guests)
+- Created src/hooks/useEventRealtime.ts (Supabase Realtime → TanStack Query invalidation)
+- Updated src/routes/e/$slug.tsx: converted useMemo to TanStack React Query (public-photos, public-guestbook), wired useEventRealtime
+- Updated src/components/event/GuestbookSection.tsx: added 'mensagem em revisão' notice for pending entries, separated local pendingEntries from server entries
+- Created src/lib/moderation.ts: fetchAllGuestbook, approveEntry, editEntry, removeEntry, submitGuestbookMessage helpers
+- Created supabase/migrations/005_guestbook_moderation.sql: moderation_status column, trigger, 4 RPC functions (get_pending, approve, edit, remove, get_all)
+- Added moderation enum to 001_initial_schema.sql
+- Added ModerationStatus type to src/lib/types.ts
+- Created src/routes/painel.tsx: full moderation panel with Tabs (all/pending/approved), EntryCard with approve/edit/remove actions, StatusBadge
+- Fixed pre-existing TS errors: GuestNameModal useEffect return path, useScrollReveal entry optional, exactOptionalPropertyTypes on 3 component interfaces
+- Typecheck: clean (0 errors)
+- Build: passes in 648ms
+- Committed: `feat: realtime, guestbook moderation & admin panel`
+- Push FAILED: GitHub token expired/revoked
 
 Stage Summary:
-- **004_guest_sessions.sql** — New table tracking anonymous QR visitors with session fingerprint, device info, activity counters. Includes SECURITY DEFINER functions for: session creation with guest list matching, name registration, guest list lookup, activity incrementing, session expiration.
-- **002_rls_policies.sql** — Fully rewritten. Anonymous access enabled for: SELECT on public events/photos/guestbook/QR codes/timeline/comments/reactions/leaderboard, INSERT on photo_likes/photo_shares/photo_comments/guestbook_entries/face_scans/qr_scans/upload_queue/guest_reactions. All management operations (create/update/delete events, manage subscriptions, view analytics) still require auth.uid().
-- **Build**: Passing ✓ (489ms, 1935 modules, Cloudflare Workers preset)
-- Key design: `session_fingerprint` + `uploader_guest_name` pattern enables full engagement (view, upload, like, share, comment, face scan) with zero authentication.
+- All code changes committed locally
+- 6 new files: useEventRealtime.ts, supabase.ts, moderation.ts, painel.tsx, 005_guestbook_moderation.sql, .env.local
+- Typecheck clean, build passes
+- Push blocked by expired token — user needs to provide a new GitHub token or push manually

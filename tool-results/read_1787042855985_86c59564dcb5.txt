@@ -1,3 +1,53 @@
+     1→import {
+     2→  QrCode,
+     3→  ScanFace,
+     4→  WifiOff,
+     5→  MessageCircle,
+     6→  Tv,
+     7→  CreditCard,
+     8→  ArrowRight,
+     9→  Star,
+    10→  Check,
+    11→  Sparkles,
+    12→  Camera,
+    13→  Zap,
+    14→  Upload,
+    15→  Eye,
+    16→} from "lucide-react";
+    17→import { useLang } from "@/lib/i18n";
+    18→import { useScrollReveal, useParallax, useCounter } from "@/hooks/useScrollReveal";
+    19→import hero1 from "@/assets/memoir/hero-1.jpg";
+    20→import hero2 from "@/assets/memoir/hero-2.jpg";
+    21→import hero3 from "@/assets/memoir/hero-3.jpg";
+    22→import hero4 from "@/assets/memoir/hero-4.jpg";
+    23→
+    24→/* ------------------------------------------------------------------ */
+    25→/*  Polaroid – local component (not exported)                         */
+    26→/* ------------------------------------------------------------------ */
+    27→
+    28→interface PolaroidProps {
+    29→  src: string;
+    30→  alt: string;
+    31→  caption: string;
+    32→  aspect: string;
+    33→  rotate: string;
+    34→  delay: string;
+    35→  floatDuration?: string;
+    36→}
+    37→
+    38→function Polaroid({
+    39→  src,
+    40→  alt,
+    41→  caption,
+    42→  aspect,
+    43→  rotate,
+    44→  delay,
+    45→  floatDuration = "6s",
+    46→}: PolaroidProps) {
+    47→  return (
+    48→    <div
+    49→      className={`polaroid animate-float-gentle transform ${rotate} transition-all duration-700 hover:rotate-0 hover:scale-[1.03] cursor-pointer group animate-rise light-leak`}
+    50→      style={{
     51→        animationDelay: delay,
     52→        "--rotation": rotate.includes("-") ? "-2deg" : "2deg",
     53→        "--float-duration": floatDuration,
