@@ -1,8 +1,33 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { Send, Heart, Clock } from "lucide-react";
+import { Send, Heart, Clock, Smile } from "lucide-react";
 import { addGuestbookEntry } from "@/lib/db";
 import type { GuestBookEntry } from "@/lib/types";
+
+const MAX_CHARS = 500;
+
+const EMOJI_CATEGORIES = [
+  {
+    name: "Smileys",
+    emojis: ["😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "😊", "😇"],
+  },
+  {
+    name: "Hearts",
+    emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎"],
+  },
+  {
+    name: "Celebrations",
+    emojis: ["🎉", "🎊", "🎈", "🥳", "🎁", "✨", "🌟"],
+  },
+  {
+    name: "Gestures",
+    emojis: ["👍", "👏", "🙌", "💪", "🤝", "✌️", "🤞"],
+  },
+  {
+    name: "Nature",
+    emojis: ["🌸", "🌺", "🌻", "🌹", "🌷"],
+  },
+];
 
 interface GuestbookSectionProps {
   entries: GuestBookEntry[];
@@ -26,9 +51,33 @@ export function GuestbookSection({
   const [reactions, setReactions] = useState<Record<string, Set<string>>>({});
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const submitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const queryClient = useQueryClient();
+
+  const charCount = message.length;
+  const isOverWarning = charCount > 450;
+  const isAtLimit = charCount >= MAX_CHARS;
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target as Node) &&
+        textareaRef.current &&
+        !textareaRef.current.contains(e.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showEmojiPicker]);
 
   // Scroll to top when a new pending message is added
   useEffect(() => {
@@ -71,9 +120,33 @@ export function GuestbookSection({
     };
   }, []);
 
+  function insertEmoji(emoji: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const before = message.slice(0, start);
+    const after = message.slice(end);
+    const next = before + emoji + after;
+
+    if (next.length > MAX_CHARS) return;
+
+    setMessage(next);
+    setShowEmojiPicker(false);
+
+    // Restore cursor position after the inserted emoji
+    requestAnimationFrame(() => {
+      const newPos = start + emoji.length;
+      ta.selectionStart = newPos;
+      ta.selectionEnd = newPos;
+      ta.focus();
+    });
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!message.trim() || submitMutation.isPending) return;
+    if (!message.trim() || submitMutation.isPending || isAtLimit) return;
 
     const newEntry: GuestBookEntry = {
       id: `gb-local-${Date.now()}`,
@@ -120,13 +193,81 @@ export function GuestbookSection({
           Escrevendo como <span className="font-semibold text-foreground">{guestName}</span>
         </p>
         <div className="glass-card rounded-xl p-1 flex gap-2 items-end animate-slide-up">
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Deixe uma mensagem para os noivos..."
-            rows={2}
-            className="flex-1 bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none"
-          />
+          <div className="flex-1 relative">
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, MAX_CHARS))}
+              placeholder="Deixe uma mensagem para os noivos..."
+              rows={2}
+              maxLength={MAX_CHARS}
+              className="w-full bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none"
+            />
+
+            {/* Emoji picker button & panel */}
+            <div className="px-3 pb-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                className={`grid size-7 place-items-center rounded-lg transition-all duration-200 hover:scale-110 ${
+                  showEmojiPicker
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground/50 hover:text-muted-foreground"
+                }`}
+                aria-label="Inserir emoji"
+                aria-expanded={showEmojiPicker}
+              >
+                <Smile className="size-4" />
+              </button>
+
+              {/* Character counter */}
+              <span
+                className={`text-[11px] tabular-nums transition-colors duration-200 ${
+                  isAtLimit
+                    ? "text-destructive font-semibold"
+                    : isOverWarning
+                      ? "text-amber-500"
+                      : "text-muted-foreground/40"
+                }`}
+              >
+                {charCount}/{MAX_CHARS}
+              </span>
+            </div>
+
+            {/* Emoji picker panel */}
+            {showEmojiPicker && (
+              <div
+                ref={emojiPickerRef}
+                className="absolute left-3 bottom-14 z-20 w-[200px] rounded-xl glass-card p-3 shadow-lg max-h-[260px] overflow-y-auto"
+                style={{ animation: "emoji-picker-in 0.2s ease-out both" }}
+                role="dialog"
+                aria-label="Selecionar emoji"
+              >
+                <div className="space-y-3">
+                  {EMOJI_CATEGORIES.map((category) => (
+                    <div key={category.name}>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+                        {category.name}
+                      </p>
+                      <div className="grid grid-cols-6 gap-0.5">
+                        {category.emojis.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => insertEmoji(emoji)}
+                            className="grid size-8 place-items-center rounded-lg text-base transition-all duration-150 hover:scale-125 hover:bg-accent/40"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="relative shrink-0">
             {/* Heart burst celebration */}
             {justSubmitted && (
@@ -139,7 +280,7 @@ export function GuestbookSection({
             )}
             <button
               type="submit"
-              disabled={!message.trim() || submitMutation.isPending}
+              disabled={!message.trim() || submitMutation.isPending || isAtLimit}
               className="grid size-11 place-items-center rounded-xl transition-all duration-300 disabled:opacity-20 hover:scale-105"
               style={{ backgroundColor: accentColor ?? "var(--color-foreground)" }}
               aria-label="Enviar"

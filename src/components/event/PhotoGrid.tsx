@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { EventPhoto } from "@/lib/types";
 import { Heart, Play, Eye, Camera } from "lucide-react";
+import { toast } from "sonner";
+import { likePhoto } from "@/lib/db";
 import { PhotoReveal, NewPhotoBadge } from "./PhotoReveal";
 
 interface PhotoGridProps {
@@ -38,29 +40,51 @@ export function PhotoGrid({ photos, onPhotoClick, revealedPhotos }: PhotoGridPro
     });
   }, []);
 
-  const toggleLike = useCallback((e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setLikedPhotos((p) => {
-      const n = new Set(p);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-    setBouncing((p) => {
-      const n = new Set(p);
-      n.add(id);
-      return n;
-    });
-    setTimeout(
-      () =>
-        setBouncing((p) => {
-          const n = new Set(p);
-          n.delete(id);
-          return n;
-        }),
-      400,
-    );
-  }, []);
+  const toggleLike = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+
+      const wasLiked = likedPhotos.has(id);
+
+      // Optimistic update
+      setLikedPhotos((p) => {
+        const n = new Set(p);
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      });
+      setBouncing((p) => {
+        const n = new Set(p);
+        n.add(id);
+        return n;
+      });
+      setTimeout(
+        () =>
+          setBouncing((p) => {
+            const n = new Set(p);
+            n.delete(id);
+            return n;
+          }),
+        400,
+      );
+
+      // Persist to server (only for likes, not unlikes)
+      if (!wasLiked) {
+        likePhoto(id)
+          .then(() => toast.success("Gostou desta foto! 💛"))
+          .catch(() => {
+            toast.error("Não foi possível registar o gosto");
+            // Revert optimistic update on error
+            setLikedPhotos((p) => {
+              const n = new Set(p);
+              n.delete(id);
+              return n;
+            });
+          });
+      }
+    },
+    [likedPhotos],
+  );
 
   useEffect(() => {
     const el = loaderRef.current;
@@ -170,16 +194,18 @@ export function PhotoGrid({ photos, onPhotoClick, revealedPhotos }: PhotoGridPro
         if (isNew) {
           return (
             <div key={photo.id} className="relative mb-1.5 sm:mb-2 break-inside-avoid">
-              <PhotoReveal reveal={true}>
-                {photoContent}
-              </PhotoReveal>
+              <PhotoReveal reveal={true}>{photoContent}</PhotoReveal>
               <NewPhotoBadge show={true} />
             </div>
           );
         }
 
         return (
-          <div key={photo.id} className="animate-fade-in" style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}>
+          <div
+            key={photo.id}
+            className="animate-fade-in"
+            style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
+          >
             {photoContent}
           </div>
         );

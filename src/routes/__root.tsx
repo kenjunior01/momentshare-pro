@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
 
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -112,8 +113,15 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt">
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('memoir-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}",
+          }}
+        />
       </head>
       <body>
+        <Toaster position="top-center" richColors closeButton />
         {children}
         <Scripts />
       </body>
@@ -179,7 +187,8 @@ function RouteProgressBar() {
         style={{
           width: `${width}%`,
           backgroundColor: "var(--color-primary)",
-          transition: width === 0 ? "none" : "width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease",
+          transition:
+            width === 0 ? "none" : "width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease",
         }}
       />
     </div>

@@ -34,12 +34,14 @@ import { GuestbookSection } from "@/components/event/GuestbookSection";
 import { LiveGuestCounter } from "@/components/event/LiveGuestCounter";
 import { ShareFloatingButton } from "@/components/event/SocialShareBar";
 import { ConfettiEffect } from "@/components/event/ConfettiEffect";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export const Route = createFileRoute("/e/$slug")({
   head: () => ({
     meta: [
       { title: "Galeria - Memoir" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "theme-color", content: "#1a1510", media: "(prefers-color-scheme: dark)" },
       { name: "theme-color", content: "#F5F0E8" },
       { property: "og:type", content: "article" },
     ],
@@ -425,6 +427,7 @@ function EventGalleryPage() {
             </Chip>
           )}
           <div className="flex-1" />
+          <ThemeToggle />
           <WifiOff className="size-3.5 text-muted-foreground/30 shrink-0" />
           <button
             onClick={() => {
