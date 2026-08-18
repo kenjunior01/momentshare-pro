@@ -1,6 +1,5 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
-import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import path from "node:path";
@@ -10,8 +9,6 @@ export default ({ mode }: { mode: string }): UserConfig => {
   const plugins: PluginOption[] = [
     // Tailwind CSS
     tailwindcss(),
-    // Path aliases from tsconfig
-    tsConfigPaths({ projects: ["./tsconfig.json"] }),
     // TanStack Start with import protection
     tanstackStart({
       server: { entry: "server" },
@@ -38,8 +35,9 @@ export default ({ mode }: { mode: string }): UserConfig => {
     },
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
+        "@": path.resolve(import.meta.dirname, "./src"),
       },
+      tsconfigPaths: true,
       dedupe: [
         "react",
         "react-dom",
@@ -48,6 +46,9 @@ export default ({ mode }: { mode: string }): UserConfig => {
         "@tanstack/react-query",
         "@tanstack/query-core",
       ],
+    },
+    build: {
+      chunkSizeWarningLimit: 600,
     },
     optimizeDeps: {
       include: [
