@@ -209,6 +209,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      event_allows_guest_upload: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
+      event_allows_guestbook: { Args: { p_event_id: string }; Returns: boolean }
+      event_is_open: { Args: { p_event_id: string }; Returns: boolean }
       get_public_event: {
         Args: { p_code?: string; p_slug: string }
         Returns: {
@@ -278,6 +284,7 @@ export type Database = {
         }
       }
       increment_event_views: { Args: { p_slug: string }; Returns: undefined }
+      is_event_owner: { Args: { p_event_id: string }; Returns: boolean }
       like_photo: { Args: { p_photo_id: string }; Returns: number }
     }
     Enums: {
