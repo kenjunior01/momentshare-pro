@@ -20,13 +20,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { useEventRealtime } from "@/hooks/useEventRealtime";
 import {
+  listMyEvents,
   listEventGuestbook,
   setGuestbookApproval,
   updateGuestbookMessage,
   deleteGuestbookEntry,
   type ModeratedEntry,
 } from "@/lib/db";
+
 
 export const Route = createFileRoute("/moderacao")({
   head: () => ({
