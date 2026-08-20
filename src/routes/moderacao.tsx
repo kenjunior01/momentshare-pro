@@ -46,14 +46,29 @@ export const Route = createFileRoute("/moderacao")({
 function ModerationPanel() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedEventId] = useState("evt-001");
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
+    queryKey: ["my-events"],
+    queryFn: listMyEvents,
+  });
+
+  const currentEventId = selectedEventId ?? events[0]?.id ?? null;
+
+  useEventRealtime({
+    eventId: currentEventId ?? "",
+    tables: ["guestbook_entries"],
+    queryKeys: ["moderation-guestbook"],
+  });
 
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["moderation-guestbook", selectedEventId],
-    queryFn: () => listEventGuestbook(selectedEventId),
+    queryKey: ["moderation-guestbook", currentEventId],
+    queryFn: () => listEventGuestbook(currentEventId!),
+    enabled: !!currentEventId,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
   });
+
 
   const approveMut = useMutation({
     mutationFn: (id: string) => setGuestbookApproval(id, true),
