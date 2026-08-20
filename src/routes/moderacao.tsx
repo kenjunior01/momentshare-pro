@@ -20,13 +20,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { useEventRealtime } from "@/hooks/useEventRealtime";
 import {
+  listMyEvents,
   listEventGuestbook,
   setGuestbookApproval,
   updateGuestbookMessage,
   deleteGuestbookEntry,
   type ModeratedEntry,
 } from "@/lib/db";
+
 
 export const Route = createFileRoute("/moderacao")({
   head: () => ({
@@ -46,14 +49,29 @@ export const Route = createFileRoute("/moderacao")({
 function ModerationPanel() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedEventId] = useState("evt-001");
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
+    queryKey: ["my-events"],
+    queryFn: listMyEvents,
+  });
+
+  const currentEventId = selectedEventId ?? events[0]?.id ?? null;
+
+  useEventRealtime({
+    eventId: currentEventId ?? "",
+    tables: ["guestbook_entries"],
+    queryKeys: ["moderation-guestbook"],
+  });
 
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["moderation-guestbook", selectedEventId],
-    queryFn: () => listEventGuestbook(selectedEventId),
+    queryKey: ["moderation-guestbook", currentEventId],
+    queryFn: () => listEventGuestbook(currentEventId!),
+    enabled: !!currentEventId,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
   });
+
 
   const approveMut = useMutation({
     mutationFn: (id: string) => setGuestbookApproval(id, true),
@@ -111,7 +129,7 @@ function ModerationPanel() {
           </div>
           <div className="flex-1" />
           <Lock className="size-3.5 text-muted-foreground/40" />
-          <a href="/_authenticated/painel">
+          <a href="/painel">
             <Button variant="outline" size="sm" className="text-xs">
               Painel
             </Button>
@@ -120,8 +138,36 @@ function ModerationPanel() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {!eventsLoading && events.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-sm text-muted-foreground">
+              Ainda não tens eventos. Cria um no painel para moderar mensagens.
+            </p>
+          </div>
+        )}
+
+        {events.length > 0 && (
+          <div className="mb-6">
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Evento
+            </label>
+            <select
+              value={currentEventId ?? ""}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+              className="w-full sm:w-80 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 w-full sm:w-auto">
+
             <TabsTrigger value="all" className="gap-1.5 text-xs">
               <MessageSquare className="size-3" /> Todas ({entries.length})
             </TabsTrigger>
@@ -133,14 +179,14 @@ function ModerationPanel() {
             </TabsTrigger>
           </TabsList>
 
-          {isLoading && (
+          {!!currentEventId && isLoading && (
             <div className="flex items-center justify-center py-20 text-muted-foreground">
               <Loader2 className="size-5 animate-spin mr-2" />
               <span className="text-sm">A carregar mensagens...</span>
             </div>
           )}
 
-          {!isLoading && entries.length === 0 && (
+          {!!currentEventId && !isLoading && entries.length === 0 && (
             <div className="text-center py-20">
               <div className="inline-flex items-center justify-center size-16 rounded-full bg-muted mb-4">
                 <MessageSquare className="size-7 text-muted-foreground/50" />
