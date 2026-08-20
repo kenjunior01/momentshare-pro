@@ -129,7 +129,7 @@ function ModerationPanel() {
           </div>
           <div className="flex-1" />
           <Lock className="size-3.5 text-muted-foreground/40" />
-          <a href="/_authenticated/painel">
+          <a href="/painel">
             <Button variant="outline" size="sm" className="text-xs">
               Painel
             </Button>
@@ -138,8 +138,36 @@ function ModerationPanel() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {!eventsLoading && events.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-sm text-muted-foreground">
+              Ainda não tens eventos. Cria um no painel para moderar mensagens.
+            </p>
+          </div>
+        )}
+
+        {events.length > 0 && (
+          <div className="mb-6">
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Evento
+            </label>
+            <select
+              value={currentEventId ?? ""}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+              className="w-full sm:w-80 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 w-full sm:w-auto">
+
             <TabsTrigger value="all" className="gap-1.5 text-xs">
               <MessageSquare className="size-3" /> Todas ({entries.length})
             </TabsTrigger>
