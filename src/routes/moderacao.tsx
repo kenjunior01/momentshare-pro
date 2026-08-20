@@ -179,14 +179,14 @@ function ModerationPanel() {
             </TabsTrigger>
           </TabsList>
 
-          {isLoading && (
+          {!!currentEventId && isLoading && (
             <div className="flex items-center justify-center py-20 text-muted-foreground">
               <Loader2 className="size-5 animate-spin mr-2" />
               <span className="text-sm">A carregar mensagens...</span>
             </div>
           )}
 
-          {!isLoading && entries.length === 0 && (
+          {!!currentEventId && !isLoading && entries.length === 0 && (
             <div className="text-center py-20">
               <div className="inline-flex items-center justify-center size-16 rounded-full bg-muted mb-4">
                 <MessageSquare className="size-7 text-muted-foreground/50" />
