@@ -43,7 +43,13 @@ export function AccessCodeGate({ onSubmit, accentColor, error }: AccessCodeGateP
             maxLength={12}
             autoComplete="off"
           />
+          {error && (
+            <p className="mt-3 text-xs font-medium text-destructive" role="alert">
+              {error}
+            </p>
+          )}
           <button
+
             type="submit"
             disabled={code.trim().length < 3}
             className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-sm px-6 py-3.5 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40"
