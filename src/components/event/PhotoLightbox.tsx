@@ -47,6 +47,10 @@ export function PhotoLightbox({
   const [showHelp, setShowHelp] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
 
   /* ── Zoom & Pan state ────────────────────────────────────────── */
   const [zoom, setZoom] = useState(1);
