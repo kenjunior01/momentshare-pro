@@ -20,7 +20,11 @@ interface PhotoLightboxProps {
   photos: EventPhoto[];
   currentIndex: number;
   onClose: () => void;
-  onNavigate: (index: number) => void;
+  /** Whether the organizer allows downloads for this event */
+  downloadEnabled?: boolean | undefined;
+  /** Event name used in share captions */
+  eventName?: string | undefined;
+
 }
 
 const ZOOM_MIN = 1;
