@@ -325,8 +325,59 @@ export function PhotoLightbox({
   /* ------------------------------------------------------------------ */
   if (!photo) return null;
 
-  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-  const whatsappText = encodeURIComponent(`${photo.caption ?? "Foto"} — Memoir\n${shareUrl}`);
+  // Share link points at this event's gallery + this photo. The access code is
+  // never included, so the link only works for whoever has the right code.
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}?foto=${photo.id}`
+      : "";
+  const shareCaption = `${photo.caption ? `${photo.caption} — ` : ""}${eventName ?? "Memoir"}`;
+  const whatsappText = encodeURIComponent(`${shareCaption}\n${shareUrl}`);
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast.success("Link copiado!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar o link");
+    }
+  }
+
+  async function handleNativeShare() {
+    if (typeof navigator === "undefined" || !navigator.share) return handleCopyLink();
+    try {
+      await navigator.share({ title: shareCaption, text: shareCaption, url: shareUrl });
+    } catch {
+      /* cancelled */
+    }
+  }
+
+  async function handleDownload() {
+    if (!downloadEnabled || !photo) return;
+    setDownloading(true);
+    try {
+      // photo.src is a short-lived signed URL scoped to this event's storage
+      // folder — it is only obtainable after the event/code check passed.
+      const res = await fetch(photo.src);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(eventName ?? "memoir").replace(/[^\w-]+/g, "-").toLowerCase()}-${photo.id.slice(0, 8)}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Não foi possível transferir esta foto");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
