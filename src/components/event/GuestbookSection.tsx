@@ -87,7 +87,30 @@ export function GuestbookSection({
   }, [localPending.length]);
 
   // Merge server-approved entries with local pending entries
-  const visibleEntries = [...localPending, ...entries];
+  const allEntries = [...localPending, ...entries];
+
+  // ── Pagination + lazy loading ──
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const visibleEntries = allEntries.slice(0, visibleCount);
+  const hasMore = visibleCount < allEntries.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (obs) => {
+        if (obs[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, allEntries.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, allEntries.length]);
+
 
   // Submit to Supabase — new entries go to moderation first
   const submitMutation = useMutation({
