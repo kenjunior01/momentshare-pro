@@ -5,6 +5,8 @@ import { addGuestbookEntry } from "@/lib/db";
 import type { GuestBookEntry } from "@/lib/types";
 
 const MAX_CHARS = 500;
+const PAGE_SIZE = 8;
+
 
 const EMOJI_CATEGORIES = [
   {
