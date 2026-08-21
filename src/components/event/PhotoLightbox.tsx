@@ -24,7 +24,7 @@ interface PhotoLightboxProps {
   downloadEnabled?: boolean | undefined;
   /** Event name used in share captions */
   eventName?: string | undefined;
-
+  onNavigate: (index: number) => void;
 }
 
 const ZOOM_MIN = 1;
@@ -32,7 +32,15 @@ const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
 const ZOOM_DOUBLE_TAP = 2.5;
 
-export function PhotoLightbox({ photos, currentIndex, onClose, onNavigate }: PhotoLightboxProps) {
+export function PhotoLightbox({
+  photos,
+  currentIndex,
+  onClose,
+  onNavigate,
+  downloadEnabled = true,
+  eventName,
+}: PhotoLightboxProps) {
+
   const [liked, setLiked] = useState(false);
   const [heartAnimating, setHeartAnimating] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
