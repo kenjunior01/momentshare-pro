@@ -411,6 +411,36 @@ export function GuestbookSection({
           );
         })}
       </div>
+
+      {/* Lazy loading sentinel + manual fallback */}
+      {hasMore && (
+        <div ref={sentinelRef} className="mt-8 flex flex-col items-center gap-3">
+          <div className="flex gap-1.5" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="size-1.5 rounded-full bg-muted-foreground/30 animate-pulse"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, allEntries.length))}
+            className="rounded-full border border-border/60 px-5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/40"
+          >
+            Ver mais mensagens
+          </button>
+        </div>
+      )}
+
+      {allEntries.length > 0 && (
+        <p className="mt-6 text-center text-[11px] text-muted-foreground/60">
+          A mostrar {visibleEntries.length} de {allEntries.length}{" "}
+          {allEntries.length === 1 ? "mensagem" : "mensagens"}
+        </p>
+      )}
     </section>
+
   );
 }
