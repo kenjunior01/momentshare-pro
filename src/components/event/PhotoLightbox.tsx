@@ -10,7 +10,12 @@ import {
   Info,
   ZoomIn,
   ZoomOut,
+  Copy,
+  Check,
+  Instagram,
+  Facebook,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { likePhoto } from "@/lib/db";
 import type { EventPhoto } from "@/lib/types";
