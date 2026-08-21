@@ -271,10 +271,17 @@ function EventGalleryPage() {
     );
   }
 
-  // ── Access code gate ──
-  if (event.requires_code && !event.authorized && !accessCode) {
-    return <AccessCodeGate onSubmit={handleAccessCode} accentColor={accentColor ?? undefined} />;
+  // ── Access code gate: only an authorized session may see photos/downloads ──
+  if (event.requires_code && !event.authorized) {
+    return (
+      <AccessCodeGate
+        onSubmit={handleAccessCode}
+        accentColor={accentColor ?? undefined}
+        error={accessCode ? "Código inválido. Verifique o convite e tente novamente." : undefined}
+      />
+    );
   }
+
 
   const eventTypeLabel =
     event.event_type === "wedding"
@@ -501,7 +508,10 @@ function EventGalleryPage() {
           currentIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
+          downloadEnabled={event.download_enabled && event.authorized !== false}
+          eventName={event.name}
         />
+
       )}
 
       {/* Upload FAB — guests upload photos by QR, zero registration */}

@@ -10,7 +10,12 @@ import {
   Info,
   ZoomIn,
   ZoomOut,
+  Copy,
+  Check,
+  Instagram,
+  Facebook,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { likePhoto } from "@/lib/db";
 import type { EventPhoto } from "@/lib/types";
@@ -20,6 +25,10 @@ interface PhotoLightboxProps {
   photos: EventPhoto[];
   currentIndex: number;
   onClose: () => void;
+  /** Whether the organizer allows downloads for this event */
+  downloadEnabled?: boolean | undefined;
+  /** Event name used in share captions */
+  eventName?: string | undefined;
   onNavigate: (index: number) => void;
 }
 
@@ -28,13 +37,25 @@ const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
 const ZOOM_DOUBLE_TAP = 2.5;
 
-export function PhotoLightbox({ photos, currentIndex, onClose, onNavigate }: PhotoLightboxProps) {
+export function PhotoLightbox({
+  photos,
+  currentIndex,
+  onClose,
+  onNavigate,
+  downloadEnabled = true,
+  eventName,
+}: PhotoLightboxProps) {
+
   const [liked, setLiked] = useState(false);
   const [heartAnimating, setHeartAnimating] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
 
   /* ── Zoom & Pan state ────────────────────────────────────────── */
   const [zoom, setZoom] = useState(1);
@@ -309,8 +330,59 @@ export function PhotoLightbox({ photos, currentIndex, onClose, onNavigate }: Pho
   /* ------------------------------------------------------------------ */
   if (!photo) return null;
 
-  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-  const whatsappText = encodeURIComponent(`${photo.caption ?? "Foto"} — Memoir\n${shareUrl}`);
+  // Share link points at this event's gallery + this photo. The access code is
+  // never included, so the link only works for whoever has the right code.
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}?foto=${photo.id}`
+      : "";
+  const shareCaption = `${photo.caption ? `${photo.caption} — ` : ""}${eventName ?? "Memoir"}`;
+  const whatsappText = encodeURIComponent(`${shareCaption}\n${shareUrl}`);
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast.success("Link copiado!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar o link");
+    }
+  }
+
+  async function handleNativeShare() {
+    if (typeof navigator === "undefined" || !navigator.share) return handleCopyLink();
+    try {
+      await navigator.share({ title: shareCaption, text: shareCaption, url: shareUrl });
+    } catch {
+      /* cancelled */
+    }
+  }
+
+  async function handleDownload() {
+    if (!downloadEnabled || !photo) return;
+    setDownloading(true);
+    try {
+      // photo.src is a short-lived signed URL scoped to this event's storage
+      // folder — it is only obtainable after the event/code check passed.
+      const res = await fetch(photo.src);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(eventName ?? "memoir").replace(/[^\w-]+/g, "-").toLowerCase()}-${photo.id.slice(0, 8)}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Não foi possível transferir esta foto");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
@@ -490,28 +562,93 @@ export function PhotoLightbox({ photos, currentIndex, onClose, onNavigate }: Pho
             />
           </button>
 
-          {/* Download */}
-          <a
-            href={photo.src}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="grid size-10 place-items-center rounded-full text-background/70 hover:text-background hover:bg-background/10 transition-all duration-200"
-            aria-label="Download"
-          >
-            <Download className="size-[18px]" />
-          </a>
+          {/* Download — only if the organizer enabled downloads */}
+          {downloadEnabled && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="grid size-10 place-items-center rounded-full text-background/70 hover:text-background hover:bg-background/10 transition-all duration-200 disabled:opacity-40"
+              aria-label="Transferir foto"
+            >
+              <Download className={cn("size-[18px]", downloading && "animate-pulse")} />
+            </button>
+          )}
 
-          {/* WhatsApp share */}
-          <a
-            href={`https://api.whatsapp.com/send?text=${whatsappText}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="grid size-10 place-items-center rounded-full text-background/70 hover:text-background hover:bg-background/10 transition-all duration-200"
-            aria-label="Partilhar no WhatsApp"
-          >
-            <Share2 className="size-[18px]" />
-          </a>
+          {/* Share menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShareOpen((v) => !v)}
+              className={cn(
+                "grid size-10 place-items-center rounded-full transition-all duration-200",
+                shareOpen
+                  ? "bg-background/20 text-background"
+                  : "text-background/70 hover:text-background hover:bg-background/10",
+              )}
+              aria-label="Partilhar foto"
+              aria-expanded={shareOpen}
+            >
+              <Share2 className="size-[18px]" />
+            </button>
+
+            {shareOpen && (
+              <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-30 w-56 rounded-xl glass-card p-2 shadow-lg animate-fade-in">
+                <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  Partilhar esta foto
+                </p>
+                <a
+                  href={`https://api.whatsapp.com/send?text=${whatsappText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShareOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-card-foreground hover:bg-accent/40 transition-colors"
+                >
+                  <MessageCircle className="size-4 text-emerald-600" /> WhatsApp
+                </a>
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShareOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-card-foreground hover:bg-accent/40 transition-colors"
+                >
+                  <Facebook className="size-4 text-blue-600" /> Facebook
+                </a>
+                <button
+                  onClick={() => {
+                    void handleCopyLink();
+                    window.open("https://www.instagram.com/", "_blank");
+                    setShareOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-card-foreground hover:bg-accent/40 transition-colors"
+                >
+                  <Instagram className="size-4 text-pink-500" /> Instagram
+                </button>
+                <button
+                  onClick={() => void handleCopyLink()}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-card-foreground hover:bg-accent/40 transition-colors"
+                >
+                  {copied ? (
+                    <Check className="size-4 text-emerald-500" />
+                  ) : (
+                    <Copy className="size-4 text-muted-foreground" />
+                  )}
+                  {copied ? "Link copiado" : "Copiar link"}
+                </button>
+                {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+                  <button
+                    onClick={() => {
+                      void handleNativeShare();
+                      setShareOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-card-foreground hover:bg-accent/40 transition-colors"
+                  >
+                    <Share2 className="size-4 text-muted-foreground" /> Mais opções
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
 
           {/* Comment */}
           <button

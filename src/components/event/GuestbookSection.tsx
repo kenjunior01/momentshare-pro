@@ -5,6 +5,8 @@ import { addGuestbookEntry } from "@/lib/db";
 import type { GuestBookEntry } from "@/lib/types";
 
 const MAX_CHARS = 500;
+const PAGE_SIZE = 8;
+
 
 const EMOJI_CATEGORIES = [
   {
@@ -87,7 +89,30 @@ export function GuestbookSection({
   }, [localPending.length]);
 
   // Merge server-approved entries with local pending entries
-  const visibleEntries = [...localPending, ...entries];
+  const allEntries = [...localPending, ...entries];
+
+  // ── Pagination + lazy loading ──
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const visibleEntries = allEntries.slice(0, visibleCount);
+  const hasMore = visibleCount < allEntries.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (obs) => {
+        if (obs[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, allEntries.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, allEntries.length]);
+
 
   // Submit to Supabase — new entries go to moderation first
   const submitMutation = useMutation({
@@ -386,6 +411,36 @@ export function GuestbookSection({
           );
         })}
       </div>
+
+      {/* Lazy loading sentinel + manual fallback */}
+      {hasMore && (
+        <div ref={sentinelRef} className="mt-8 flex flex-col items-center gap-3">
+          <div className="flex gap-1.5" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="size-1.5 rounded-full bg-muted-foreground/30 animate-pulse"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, allEntries.length))}
+            className="rounded-full border border-border/60 px-5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/40"
+          >
+            Ver mais mensagens
+          </button>
+        </div>
+      )}
+
+      {allEntries.length > 0 && (
+        <p className="mt-6 text-center text-[11px] text-muted-foreground/60">
+          A mostrar {visibleEntries.length} de {allEntries.length}{" "}
+          {allEntries.length === 1 ? "mensagem" : "mensagens"}
+        </p>
+      )}
     </section>
+
   );
 }
