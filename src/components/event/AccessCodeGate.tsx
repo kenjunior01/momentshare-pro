@@ -4,9 +4,11 @@ import { Lock, ArrowRight } from "lucide-react";
 interface AccessCodeGateProps {
   onSubmit: (code: string) => void;
   accentColor?: string | undefined;
+  error?: string | undefined;
 }
 
-export function AccessCodeGate({ onSubmit, accentColor }: AccessCodeGateProps) {
+export function AccessCodeGate({ onSubmit, accentColor, error }: AccessCodeGateProps) {
+
   const [code, setCode] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
