@@ -508,7 +508,10 @@ function EventGalleryPage() {
           currentIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
+          downloadEnabled={event.download_enabled && event.authorized !== false}
+          eventName={event.name}
         />
+
       )}
 
       {/* Upload FAB — guests upload photos by QR, zero registration */}
